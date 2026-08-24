@@ -1,0 +1,23 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #14161a;
+  font-family: monospace;
+}
+
+#scene {
+  position: fixed;
+  inset: 0;
+}
+
+#scene canvas {
+  display: block;
+}
+
+.pp-panel {
+  width: 300px;
+  max-height: calc(100vh - 24px);
+}

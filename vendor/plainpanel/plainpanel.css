@@ -1,0 +1,64 @@
+/* Optional theme: the polytopy look. Dark, monospace, translucent panels.
+   Skip this file entirely for bare native controls — everything still works.
+   Every color reads a --pp-* custom property with the classic value as the
+   fallback, so an app can retheme the panels by defining those variables. */
+
+.pp-panel {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  background: var(--pp-bg, rgba(0, 0, 0, 0.8));
+  color: var(--pp-text, #eee);
+  font-family: monospace;
+  padding: 8px 10px;
+  min-width: 220px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  border-radius: var(--pp-radius, 6px);
+}
+
+.pp-panel summary,
+.pp-folder summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.pp-folder {
+  border: 1px solid var(--pp-border, #444);
+  border-radius: var(--pp-radius-s, 4px);
+  padding: 4px 6px;
+  margin: 6px 0;
+}
+
+.pp-row {
+  margin: 6px 0;
+}
+
+.pp-row input[type='range'] {
+  width: 100%;
+}
+
+.pp-panel button,
+.pp-folder button {
+  font-family: monospace;
+  background: var(--pp-control, #222);
+  color: var(--pp-text, #eee);
+  border: 1px solid var(--pp-control-border, #555);
+  border-radius: var(--pp-radius-s, 4px);
+  padding: 3px 8px;
+  margin: 4px 4px 0 0;
+  cursor: pointer;
+}
+
+.pp-panel button:disabled,
+.pp-folder button:disabled {
+  color: var(--pp-muted, #666);
+  border-color: var(--pp-border, #333);
+  cursor: default;
+}
+
+.pp-panel output,
+.pp-folder output {
+  color: var(--pp-accent, #8fc7ff);
+}
