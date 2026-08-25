@@ -7,6 +7,10 @@ import * as THREE from 'three/webgpu';
 const POS_WEIGHT = new THREE.Color(0x2ecc71);
 const NEG_WEIGHT = new THREE.Color(0xe74c3c);
 const DIM = new THREE.Color(0x20242a);
+
+export function setDimColor(hex: number): void {
+  DIM.set(hex);
+}
 const POS_ACT = new THREE.Color(0xff9f43);
 const NEG_ACT = new THREE.Color(0x54a0ff);
 

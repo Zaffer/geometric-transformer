@@ -1,10 +1,11 @@
 // Text sprites from canvas textures, with a cache keyed by text + color.
 
 import * as THREE from 'three/webgpu';
+import { vizTheme } from './theme';
 
 const cache = new Map<string, THREE.SpriteMaterial>();
 
-export function labelMaterial(text: string, color = '#c8cdd4', fontPx = 44): THREE.SpriteMaterial {
+export function labelMaterial(text: string, color = vizTheme().label, fontPx = 44): THREE.SpriteMaterial {
   const key = `${text}|${color}|${fontPx}`;
   const hit = cache.get(key);
   if (hit) return hit;
@@ -28,7 +29,7 @@ export function labelMaterial(text: string, color = '#c8cdd4', fontPx = 44): THR
   return mat;
 }
 
-export function makeLabel(text: string, height: number, color?: string): THREE.Sprite {
+export function makeLabel(text: string, height: number, color = vizTheme().label): THREE.Sprite {
   const mat = labelMaterial(text, color);
   const sprite = new THREE.Sprite(mat);
   sprite.scale.set(height * mat.userData.aspect, height, 1);

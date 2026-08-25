@@ -1,12 +1,11 @@
-// The plainpanel control interface. One panel, five folders. All controls
-// bind to the signals in state.ts; the selection inspector is rebuilt by an
-// effect when the selection changes.
+// The plainpanel builder panels. Left: model, training, sample, view.
+// Right: the selection inspector, rebuilt by an effect when the selection
+// changes. All controls bind to the signals in state.ts.
 
 import {
   computed,
   effect,
   panel,
-  series,
   signal,
   type Signal,
   type Stop,
@@ -22,10 +21,10 @@ export interface PanelActions {
   paramCount(): number;
 }
 
-export const lossSeries = series(400);
-
 export function setupPanels(actions: PanelActions): void {
-  const p = panel('geometric transformer');
+  const left = document.getElementById('left')!;
+  const right = document.getElementById('right')!;
+  const p = panel('controls', { parent: left });
 
   const arch = p.folder('model');
   arch.slider('layers', s.nLayer, { min: 1, max: 4, step: 1 });
@@ -47,47 +46,12 @@ export function setupPanels(actions: PanelActions): void {
   train.slider('learn rate', s.lr, { min: 0.0005, max: 0.02, step: 0.0005, format: (v) => v.toFixed(4) });
   train.slider('batch size', s.batchSize, { min: 1, max: 32, step: 1 });
   train.slider('steps each frame', s.stepsPerFrame, { min: 1, max: 20, step: 1 });
-  train.readout('step', s.stepCount);
-  train.readout('loss', computed(() => (Number.isNaN(s.lossVal()) ? '-' : s.lossVal().toFixed(4))));
-  train.readout('accuracy', computed(() =>
-    Number.isNaN(s.accuracy()) ? '-' : `${(s.accuracy() * 100).toFixed(0)} %`));
-
-  const canvas = document.createElement('canvas');
-  canvas.width = 264;
-  canvas.height = 56;
-  canvas.style.width = '100%';
-  canvas.style.display = 'block';
-  train.add(canvas);
-  const ctx = canvas.getContext('2d')!;
-  effect(() => {
-    const data = lossSeries.read();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const values = data.filter((v): v is number => v !== null);
-    if (values.length < 2) return;
-    let min = Infinity;
-    let max = -Infinity;
-    for (const v of values) {
-      if (v < min) min = v;
-      if (v > max) max = v;
-    }
-    const span = Math.max(max - min, 1e-6);
-    ctx.strokeStyle = '#e17055';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    values.forEach((v, i) => {
-      const x = (i / (values.length - 1)) * canvas.width;
-      const y = canvas.height - 3 - ((v - min) / span) * (canvas.height - 6);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-  });
 
   const sampleF = p.folder('sample');
   sampleF.button('new sequence', actions.newSample);
   sampleF.slider('circuit position', s.viewPos, { min: 0, max: 15, step: 1 });
 
-  const view = p.folder('view', false);
+  const view = p.folder('view');
   view.toggle('weights', s.showWeights);
   view.toggle('biases', s.showBiases);
   view.toggle('sequence panel', s.showSequence);
@@ -97,10 +61,10 @@ export function setupPanels(actions: PanelActions): void {
   view.slider('weight color scale', s.weightColorScale, { min: 0.05, max: 1, step: 0.05, format: (v) => v.toFixed(2) });
   view.slider('activation color scale', s.actColorScale, { min: 0.2, max: 4, step: 0.1, format: (v) => v.toFixed(1) });
 
-  // Selection inspector: rebuilt when the selection changes.
+  // Selection inspector, in the right panel. Rebuilt when the selection changes.
   effect(() => {
     const sel = s.selection();
-    const f = p.folder('selection');
+    const f = panel('selection', { parent: right });
     const stops: Stop[] = [];
     if (!sel) {
       f.readout('element', () => 'none - click a neuron or synapse');

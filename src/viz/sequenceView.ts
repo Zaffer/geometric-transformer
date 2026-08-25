@@ -9,6 +9,7 @@ import { TOKEN_NAMES } from '../model/config';
 import type { ForwardCache } from '../model/transformer';
 import { TOKEN_COLORS, activationColor, headColor } from './palette';
 import { labelMaterial, makeLabel } from './labels';
+import { vizTheme } from './theme';
 
 const XSP = 0.9;
 const CELL = 0.28;
@@ -68,7 +69,7 @@ export function buildSequenceView(cfg: ModelConfig): SequenceView {
     mesh.position.set(xPos(t), 0, 0);
     group.add(mesh);
     tokMeshes.push(mesh);
-    const sprite = new THREE.Sprite(labelMaterial('·', '#9aa5b1'));
+    const sprite = new THREE.Sprite(labelMaterial('·', vizTheme().faint));
     sprite.scale.set(0.55, 0.55, 1);
     sprite.position.set(xPos(t), -0.75, 0);
     group.add(sprite);
@@ -78,7 +79,7 @@ export function buildSequenceView(cfg: ModelConfig): SequenceView {
   // ---- prediction row ----
   const predSprites: THREE.Sprite[] = [];
   for (let t = 0; t < T; t++) {
-    const sprite = new THREE.Sprite(labelMaterial('·', '#9aa5b1'));
+    const sprite = new THREE.Sprite(labelMaterial('·', vizTheme().faint));
     sprite.scale.set(0.6, 0.6, 1);
     sprite.position.set(xPos(t), topY + 0.7, 0);
     group.add(sprite);
@@ -94,7 +95,7 @@ export function buildSequenceView(cfg: ModelConfig): SequenceView {
     mesh.position.set(barBaseX + v * 0.5, topY + 0.5, 0);
     group.add(mesh);
     bars.push(mesh);
-    const l = makeLabel(TOKEN_NAMES[v], 0.45, '#9aa5b1');
+    const l = makeLabel(TOKEN_NAMES[v], 0.45, vizTheme().faint);
     l.position.set(barBaseX + v * 0.5, topY - 0.4, 0);
     labels.add(l);
   }
@@ -137,7 +138,7 @@ export function buildSequenceView(cfg: ModelConfig): SequenceView {
 
   // ---- row labels ----
   const rowLabel = (text: string, y: number) => {
-    const l = makeLabel(text, 0.55, '#7f8ea3');
+    const l = makeLabel(text, 0.55, vizTheme().muted);
     l.position.set(-1.9, y, 0);
     labels.add(l);
   };
@@ -171,7 +172,7 @@ export function buildSequenceView(cfg: ModelConfig): SequenceView {
     for (let t = 0; t < T; t++) {
       const tok = cache.tokens[t];
       (tokMeshes[t].material as THREE.MeshBasicMaterial).color.copy(TOKEN_COLORS[tok]);
-      tokSprites[t].material = labelMaterial(TOKEN_NAMES[tok], '#c8cdd4');
+      tokSprites[t].material = labelMaterial(TOKEN_NAMES[tok], vizTheme().label);
     }
 
     // predictions
@@ -181,7 +182,7 @@ export function buildSequenceView(cfg: ModelConfig): SequenceView {
         if (cache.probs[t * V + v] > cache.probs[t * V + best]) best = v;
       }
       const tgt = targets[t];
-      const color = tgt < 0 ? '#5c6672' : best === tgt ? '#2ecc71' : '#e74c3c';
+      const color = tgt < 0 ? vizTheme().muted : best === tgt ? '#2ecc71' : '#e74c3c';
       predSprites[t].material = labelMaterial(TOKEN_NAMES[best], color);
     }
 

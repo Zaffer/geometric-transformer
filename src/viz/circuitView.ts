@@ -9,6 +9,7 @@ import type { ForwardCache, Transformer } from '../model/transformer';
 import type { SelEntry, Selection } from '../state';
 import { activationColor, headColor, weightColor } from './palette';
 import { makeLabel } from './labels';
+import { vizTheme } from './theme';
 import { TOKEN_NAMES } from '../model/config';
 
 const XSTEP = 2.6;
@@ -362,7 +363,7 @@ export function buildCircuitView(model: Transformer): CircuitView {
   const structGeom = new THREE.BufferGeometry().setFromPoints(structural);
   const structLines = new THREE.LineSegments(
     structGeom,
-    new THREE.LineBasicMaterial({ color: 0x39414d, transparent: true, opacity: 0.4 }),
+    new THREE.LineBasicMaterial({ color: vizTheme().structural, transparent: true, opacity: 0.5 }),
   );
   group.add(structLines);
 
@@ -375,15 +376,15 @@ export function buildCircuitView(model: Transformer): CircuitView {
     labels.add(l);
   }
   for (let b = 0; b < cfg.nLayer; b++) {
-    const l = makeLabel(`block ${b}`, 1.0, '#7f8ea3');
+    const l = makeLabel(`block ${b}`, 1.0, vizTheme().muted);
     l.position.set(blockStages[b].labelX, 12.5, 0);
     labels.add(l);
   }
   for (let i = 0; i < V; i++) {
-    const lt = makeLabel(TOKEN_NAMES[i], 0.6, '#9aa5b1');
+    const lt = makeLabel(TOKEN_NAMES[i], 0.6, vizTheme().faint);
     lt.position.set(tok.x - 0.8, unitPos(tok, i).y, 0);
     labels.add(lt);
-    const ll = makeLabel(TOKEN_NAMES[i], 0.6, '#9aa5b1');
+    const ll = makeLabel(TOKEN_NAMES[i], 0.6, vizTheme().faint);
     ll.position.set(logits.x + 0.9, unitPos(logits, i).y, 0);
     labels.add(ll);
   }

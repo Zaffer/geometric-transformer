@@ -14,7 +14,10 @@ import { RNG } from './model/rng';
 import { Stage3D, disposeGroup } from './viz/scene';
 import { buildCircuitView, type CircuitView } from './viz/circuitView';
 import { buildSequenceView, type SequenceView } from './viz/sequenceView';
-import { lossSeries, setupPanels } from './ui/panels';
+import { DARK, LIGHT, setVizTheme } from './viz/theme';
+import { setDimColor } from './viz/palette';
+import { setupPanels } from './ui/panels';
+import { setupChrome } from './ui/chrome';
 import * as s from './state';
 
 // Initialize the config signals from the chosen default before anything runs.
@@ -27,9 +30,14 @@ s.activation(MICRO.activation);
 s.norm(MICRO.norm);
 s.mlp(MICRO.mlp);
 
+const SEQ_SCALE = 1.2;
+const SEQ_BASE_Y = 15;
+
 async function boot(): Promise<void> {
   const container = document.getElementById('scene')!;
   const stage = await Stage3D.create(container);
+  const backend = stage.renderer.backend as { isWebGPUBackend?: boolean };
+  s.backendName(backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2');
 
   let seed = 1337;
   let model!: Transformer;
@@ -38,10 +46,46 @@ async function boot(): Promise<void> {
   let seqView: SequenceView | null = null;
   let sample!: Sample;
   let cache!: ForwardCache;
+  let firstBuild = true;
   const sampleRng = new RNG(2026);
   const accRng = new RNG(777);
 
-  const rebuild = () => {
+  // Fit the camera to the combined bounds of both panels. Called once at
+  // start and on "reset camera" only; nothing else moves the camera.
+  const fitCamera = () => {
+    if (!circuit || !seqView) return;
+    const minY = -15;
+    const maxY = Math.max(13.5, SEQ_BASE_Y + seqView.height * SEQ_SCALE);
+    const fovRad = (stage.camera.fov * Math.PI) / 180;
+    const halfTan = Math.tan(fovRad / 2);
+    const distV = (maxY - minY) / 2 / halfTan;
+    const distH = (circuit.width + 4) / 2 / (halfTan * stage.camera.aspect);
+    stage.lookAt(
+      new THREE.Vector3(circuit.width / 2, (minY + maxY) / 2, 0),
+      Math.max(distV, distH) * 1.02 + 8,
+    );
+  };
+
+  // Rebuild the 3D views from the current model (theme change, model change).
+  const rebuildViews = () => {
+    if (circuit) disposeGroup(circuit.group);
+    if (seqView) disposeGroup(seqView.group);
+    circuit = buildCircuitView(model);
+    stage.scene.add(circuit.group);
+    seqView = buildSequenceView(model.cfg);
+    // Above and behind the circuit, so the two panels do not overlap.
+    seqView.group.scale.setScalar(SEQ_SCALE);
+    seqView.group.position.set((circuit.width - model.cfg.nCtx * 0.9 * SEQ_SCALE) / 2, SEQ_BASE_Y, -20);
+    stage.scene.add(seqView.group);
+    s.selection(null);
+    stage.showMarker(null);
+    s.modelVersion(s.modelVersion() + 1);
+    s.bumpSample();
+    s.bumpParams();
+  };
+
+  // New model from the config signals, then new views. The camera stays.
+  const rebuildModel = () => {
     const cfg = makeConfig({
       nLayer: s.nLayer(),
       nHead: s.nHead(),
@@ -55,50 +99,38 @@ async function boot(): Promise<void> {
     model = new Transformer(cfg, seed);
     trainer = new Trainer(model, untracked(() => s.lr()));
     sample = makeSample(sampleRng, cfg.seqLen, cfg.vocab);
-
-    if (circuit) disposeGroup(circuit.group);
-    if (seqView) disposeGroup(seqView.group);
-    circuit = buildCircuitView(model);
-    stage.scene.add(circuit.group);
-    seqView = buildSequenceView(cfg);
-    // Above and behind the circuit, so the two panels do not overlap.
-    const seqScale = 1.2;
-    const seqBaseY = 15;
-    seqView.group.scale.setScalar(seqScale);
-    seqView.group.position.set((circuit.width - cfg.nCtx * 0.9 * seqScale) / 2, seqBaseY, -20);
-    stage.scene.add(seqView.group);
-
     s.running(false);
     s.stepCount(0);
     s.lossVal(Number.NaN);
     s.accuracy(Number.NaN);
-    lossSeries.clear();
-    s.selection(null);
-    stage.showMarker(null);
-    s.modelVersion(s.modelVersion() + 1);
-    s.bumpSample();
-    s.bumpParams();
+    s.lossSeries.clear();
+    s.accSeries.clear();
+    rebuildViews();
 
-    // Fit the camera to the combined bounds of both panels.
-    const minY = -15;
-    const maxY = Math.max(13.5, seqBaseY + seqView.height * seqScale);
-    const fovRad = (stage.camera.fov * Math.PI) / 180;
-    const halfTan = Math.tan(fovRad / 2);
-    const distV = (maxY - minY) / 2 / halfTan;
-    const distH = (circuit.width + 4) / 2 / (halfTan * stage.camera.aspect);
-    stage.lookAt(
-      new THREE.Vector3(circuit.width / 2, (minY + maxY) / 2, 0),
-      Math.max(distV, distH) * 1.02 + 8,
-    );
-    // ?cam=x,y,dist overrides the start camera (useful for demos and tests).
-    const camParam = new URLSearchParams(location.search).get('cam');
-    if (camParam) {
-      const [cx, cy, cd] = camParam.split(',').map(Number);
-      if ([cx, cy, cd].every(Number.isFinite)) stage.lookAt(new THREE.Vector3(cx, cy, 0), cd);
+    if (firstBuild) {
+      firstBuild = false;
+      fitCamera();
+      // ?cam=x,y,dist overrides the start camera (useful for demos and tests).
+      const camParam = new URLSearchParams(location.search).get('cam');
+      if (camParam) {
+        const [cx, cy, cd] = camParam.split(',').map(Number);
+        if ([cx, cy, cd].every(Number.isFinite)) stage.lookAt(new THREE.Vector3(cx, cy, 0), cd);
+      }
     }
   };
 
-  // Architecture changes rebuild everything.
+  // Theme: scene colors follow the UI theme; labels are baked, so views rebuild.
+  effect(() => {
+    const t = s.theme() === 'light' ? LIGHT : DARK;
+    untracked(() => {
+      setVizTheme(t);
+      setDimColor(t.dim);
+      (stage.scene.background as THREE.Color).set(t.background);
+      if (circuit) rebuildViews();
+    });
+  });
+
+  // Architecture changes rebuild the model and the views.
   effect(() => {
     s.nLayer();
     s.nHead();
@@ -108,7 +140,7 @@ async function boot(): Promise<void> {
     s.activation();
     s.norm();
     s.mlp();
-    untracked(rebuild);
+    untracked(rebuildModel);
   });
 
   // Parameter changes redraw every synapse.
@@ -130,11 +162,10 @@ async function boot(): Promise<void> {
     s.sampleVersion();
     const t = Math.min(s.viewPos(), untracked(() => model.cfg.nCtx) - 1);
     const actScale = s.actColorScale();
-    const showAtt = true;
     untracked(() => {
       cache = model.forward(sample.tokens);
       circuit!.updateActivations(cache, t, actScale);
-      seqView!.update(cache, sample.targets, actScale, showAtt);
+      seqView!.update(cache, sample.targets, actScale, true);
     });
   });
 
@@ -167,8 +198,12 @@ async function boot(): Promise<void> {
     for (let i = 0; i < steps; i++) loss = trainer.step(batch);
     s.stepCount(trainer.stepCount);
     s.lossVal(loss);
-    lossSeries.push(loss);
-    if (trainer.stepCount % 25 < steps) s.accuracy(evalAccuracy(model, accRng, 40));
+    s.lossSeries.push(loss);
+    if (trainer.stepCount % 25 < steps) {
+      const acc = evalAccuracy(model, accRng, 40);
+      s.accuracy(acc);
+      s.accSeries.push(acc);
+    }
     s.bumpParams();
   });
 
@@ -189,7 +224,7 @@ async function boot(): Promise<void> {
     toggleRun: () => s.running(!s.running()),
     resetWeights: () => {
       seed += 1;
-      rebuild();
+      rebuildModel();
     },
     newSample: () => {
       sample = makeSample(sampleRng, model.cfg.seqLen, model.cfg.vocab);
@@ -202,6 +237,7 @@ async function boot(): Promise<void> {
     },
     paramCount: () => model.paramCount(),
   });
+  setupChrome({ resetCamera: fitCamera });
 
   // ?train=1 starts training on load; ?steps=N sets steps per frame.
   const query = new URLSearchParams(location.search);
@@ -245,10 +281,16 @@ async function boot(): Promise<void> {
       return model.get(tensor).data[index];
     },
     lookAt: (x: number, y: number, dist: number) => stage.lookAt(new THREE.Vector3(x, y, 0), dist),
+    // Apply any pending orbit damping at once, so a test can read a still camera.
+    settleCamera: () => {
+      stage.controls.enableDamping = false;
+      stage.controls.update();
+      stage.controls.enableDamping = true;
+    },
     frames: () => stage.frameCount,
     frameErrors: () => stage.errorCount,
     camera: () => [stage.camera.position.x, stage.camera.position.y, stage.camera.position.z],
-    state: { stepCount: s.stepCount, lossVal: s.lossVal, accuracy: s.accuracy },
+    state: { stepCount: s.stepCount, lossVal: s.lossVal, accuracy: s.accuracy, theme: s.theme, noCss: s.noCss },
   };
 }
 

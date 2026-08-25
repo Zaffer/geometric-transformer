@@ -77,10 +77,22 @@ clicks expose biases and LayerNorm gain/bias; edge clicks expose weights.
 
 ## Controls (plainpanel)
 
-The panel is built with [plainpanel](https://github.com/Zaffer/plainpanel)
-(vendored in `vendor/plainpanel/`, it is not on npm). All state lives in
-plainpanel signals (`src/state.ts`); views and the model sit behind narrow
-calls and receive data through effects.
+The interface is built with [plainpanel](https://github.com/Zaffer/plainpanel)
+(vendored in `vendor/plainpanel/`, it is not on npm), in the layout of the
+plainpanel demo: one CSS grid with four docked panels and drag handles in
+the gaps. All state lives in plainpanel signals (`src/state.ts`); views and
+the model sit behind narrow calls and receive data through effects.
+
+- **Top bar**: the hamburger menu (dark/light theme, "no CSS" which disables
+  every stylesheet and leaves the raw HTML), the live step / loss /
+  accuracy / renderer readouts, and **reset camera**. The camera never
+  moves on its own: model changes, weight resets, and toggles keep it
+  where you left it. Only "reset camera" refits it.
+- **Left panel**: model (size, tie, activation, norm, mlp, reset weights),
+  training (train/pause, learn rate, batch, steps per frame), sample, view.
+- **Right panel**: the selection inspector. Click any synapse or neuron
+  in the scene and its parameters appear here as sliders.
+- **Bottom panel**: plots. Training loss and sort accuracy, live.
 
 URL parameters: `?train=1` starts training on load, `?steps=N` sets
 optimizer steps per frame, `?cam=x,y,dist` sets the start camera.
@@ -89,8 +101,8 @@ optimizer steps per frame, `?cam=x,y,dist` sets the start camera.
 
 ```
 src/model/     config, RNG, transformer (forward+backward), AdamW, sort task, trainer
-src/viz/       scene (renderer/picking), circuit view, sequence view, palette, labels
-src/ui/        plainpanel setup + selection inspector
+src/viz/       scene (renderer/picking), circuit view, sequence view, palette, labels, theme
+src/ui/        panels.ts (left + right builder panels), chrome.ts (top bar, handles, theme, charts)
 src/state.ts   the signal store
 tests/         numeric gradient check, training smoke test
 scripts/       puppeteer browser suite (ui-test.mjs)

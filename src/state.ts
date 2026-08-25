@@ -1,6 +1,6 @@
 // The single store of signals. Every control and every view binds here.
 
-import { signal } from '../vendor/plainpanel/plainpanel.js';
+import { series, signal } from '../vendor/plainpanel/plainpanel.js';
 
 // One editable scalar inside a named tensor.
 export interface SelEntry {
@@ -22,6 +22,9 @@ export const nHead = signal(2);
 export const dModel = signal(16);
 export const seqLen = signal(6);
 export const tieWeights = signal(true);
+export const activation = signal<'gelu' | 'relu'>('gelu');
+export const norm = signal<'layernorm' | 'rmsnorm' | 'none'>('layernorm');
+export const mlp = signal(true);
 
 // Training.
 export const running = signal(false);
@@ -31,6 +34,8 @@ export const stepsPerFrame = signal(2);
 export const stepCount = signal(0);
 export const lossVal = signal(Number.NaN);
 export const accuracy = signal(Number.NaN);
+export const lossSeries = series(600);
+export const accSeries = series(300);
 
 // Versions. A bump tells the views to read the model again.
 export const paramsVersion = signal(0);
@@ -52,6 +57,15 @@ export const actColorScale = signal(1.5);
 // Selection.
 export const selection = signal<Selection | null>(null);
 
+// UI chrome.
+export const theme = signal<'dark' | 'light'>('dark');
+export const noCss = signal(false);
+export const backendName = signal('-');
+export const leftW = signal(300);
+export const rightW = signal(280);
+export const bottomH = signal(180);
+export const chartResize = signal(0); // bumped when a chart canvas changes size
+
 export function bumpParams(): void {
   paramsVersion(paramsVersion() + 1);
 }
@@ -59,8 +73,3 @@ export function bumpParams(): void {
 export function bumpSample(): void {
   sampleVersion(sampleVersion() + 1);
 }
-
-// Architecture toggles (a change rebuilds the model).
-export const activation = signal<'gelu' | 'relu'>('gelu');
-export const norm = signal<'layernorm' | 'rmsnorm' | 'none'>('layernorm');
-export const mlp = signal(true);

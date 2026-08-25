@@ -7,7 +7,47 @@
     <title>geometric transformer</title>
   </head>
   <body>
+    <!-- TOP BAR: menu, title, live status, camera reset. Bound by data-* attributes. -->
+    <header id="top">
+      <nav id="menu">
+        <button popovertarget="menuPop" title="menu">☰</button>
+        <div popover id="menuPop">
+          <button data-on="click:actions.toggleTheme" data-text="views.themeLabel"></button>
+          <label><input type="checkbox" data-bind="ui.noCss" /> no CSS</label>
+        </div>
+      </nav>
+      <strong>geometric transformer</strong>
+      <label>step <output data-text="views.step"></output></label>
+      <label>loss <output data-text="views.loss"></output></label>
+      <label>accuracy <output data-text="views.accuracy"></output></label>
+      <label>renderer <output data-text="views.backend"></output></label>
+      <span class="spacer"></span>
+      <button data-on="click:actions.resetCamera" title="fit the camera to the scene">reset camera</button>
+    </header>
+
+    <!-- LEFT: model, training, sample, view controls (panel builder) -->
+    <section id="left"></section>
+
+    <!-- RIGHT: the selection inspector (panel builder) -->
+    <section id="right"></section>
+
+    <!-- BOTTOM: plots -->
+    <footer id="bottom">
+      <fieldset id="lossChart"><legend>training loss</legend><canvas></canvas></fieldset>
+      <fieldset id="accChart"><legend>sort accuracy</legend><canvas></canvas></fieldset>
+    </footer>
+
+    <!-- SCENE: full window, behind the panels -->
     <div id="scene"></div>
+
+    <!-- drag handles in the grid gaps -->
+    <div class="rz" id="rzLeft" data-rz="left" role="separator" aria-orientation="vertical" aria-label="resize left panel"
+      data-on="pointerdown:actions.rzDown pointermove:actions.rzMove pointerup:actions.rzUp pointercancel:actions.rzUp"></div>
+    <div class="rz" id="rzRight" data-rz="right" role="separator" aria-orientation="vertical" aria-label="resize right panel"
+      data-on="pointerdown:actions.rzDown pointermove:actions.rzMove pointerup:actions.rzUp pointercancel:actions.rzUp"></div>
+    <div class="rz" id="rzBottom" data-rz="bottom" role="separator" aria-orientation="horizontal" aria-label="resize bottom panel"
+      data-on="pointerdown:actions.rzDown pointermove:actions.rzMove pointerup:actions.rzUp pointercancel:actions.rzUp"></div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
