@@ -10,10 +10,19 @@ every parameter by hand.
 
 ```
 npm install
-npm run dev        # http://localhost:3000
-npm test           # gradient check + training test
+npm run dev              # http://localhost:3000
+npm test                 # gradient check (8 variants) + training test
 npm run typecheck
+npm run test:ui          # browser suite, WebGL2 fallback backend (needs dev server)
+npm run test:ui:webgpu   # browser suite, real WebGPU backend (software adapter)
 ```
+
+The browser suite (`scripts/ui-test.mjs`, puppeteer-core + local Chrome)
+drives every panel control and, after each action, checks: no console
+errors or warnings, the render loop still produces frames, and the camera
+still responds to a drag. It also checks training and click-to-edit. Run it
+on both backends before a commit: the WebGL2 fallback reports some faults
+only as warnings, and the WebGPU backend reports them as errors.
 
 The renderer is the Three.js WebGPURenderer. It falls back to WebGL2 when
 WebGPU is not available.
@@ -84,7 +93,7 @@ src/viz/       scene (renderer/picking), circuit view, sequence view, palette, l
 src/ui/        plainpanel setup + selection inspector
 src/state.ts   the signal store
 tests/         numeric gradient check, training smoke test
-scripts/       puppeteer interaction tests (click-to-edit, rebuild)
+scripts/       puppeteer browser suite (ui-test.mjs)
 vendor/        plainpanel (single-file ESM + css + types)
 ```
 

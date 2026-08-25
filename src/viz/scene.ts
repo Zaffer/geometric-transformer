@@ -16,6 +16,8 @@ export class Stage3D {
   private pickables: () => THREE.Object3D[] = () => [];
   private pickHandler: PickHandler | null = null;
   private frameCallbacks: Array<() => void> = [];
+  frameCount = 0;
+  errorCount = 0;
   private downX = 0;
   private downY = 0;
 
@@ -69,9 +71,16 @@ export class Stage3D {
     const stage = new Stage3D(container);
     await stage.renderer.init();
     stage.renderer.setAnimationLoop(() => {
-      for (const cb of stage.frameCallbacks) cb();
-      stage.controls.update();
-      stage.renderer.render(stage.scene, stage.camera);
+      stage.frameCount++;
+      try {
+        for (const cb of stage.frameCallbacks) cb();
+        stage.controls.update();
+        stage.renderer.render(stage.scene, stage.camera);
+      } catch (err) {
+        // Keep the loop alive, make the fault visible and countable.
+        stage.errorCount++;
+        if (stage.errorCount <= 3) console.error('frame error:', err);
+      }
     });
     return stage;
   }
@@ -101,13 +110,21 @@ export class Stage3D {
   }
 }
 
+// Frees GPU resources of a view. Sprites are skipped on purpose: all sprites
+// share one geometry inside three.js, and their materials live in the label
+// cache. Disposing either breaks every other sprite in the scene.
 export function disposeGroup(group: THREE.Object3D): void {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
   group.traverse((obj) => {
+    if ((obj as THREE.Sprite).isSprite) return;
     const mesh = obj as THREE.Mesh;
-    if (mesh.geometry) mesh.geometry.dispose();
+    if (mesh.geometry) geometries.add(mesh.geometry);
     const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
-    if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
-    else if (mat && !(obj as THREE.Sprite).isSprite) mat.dispose();
+    if (Array.isArray(mat)) mat.forEach((m) => materials.add(m));
+    else if (mat) materials.add(mat);
   });
+  geometries.forEach((g) => g.dispose());
+  materials.forEach((m) => m.dispose());
   group.parent?.remove(group);
 }

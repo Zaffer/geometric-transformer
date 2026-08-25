@@ -244,6 +244,10 @@ async function boot(): Promise<void> {
     param(tensor: string, index: number) {
       return model.get(tensor).data[index];
     },
+    lookAt: (x: number, y: number, dist: number) => stage.lookAt(new THREE.Vector3(x, y, 0), dist),
+    frames: () => stage.frameCount,
+    frameErrors: () => stage.errorCount,
+    camera: () => [stage.camera.position.x, stage.camera.position.y, stage.camera.position.z],
     state: { stepCount: s.stepCount, lossVal: s.lossVal, accuracy: s.accuracy },
   };
 }
