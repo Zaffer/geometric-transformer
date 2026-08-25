@@ -1,7 +1,11 @@
 // Model configuration for the pure GPT-2 style transformer.
 // "Pure" means: token embedding + learned positional embedding,
-// N x [LayerNorm, causal multi-head attention, residual, LayerNorm, GELU MLP, residual],
-// final LayerNorm, unembedding, softmax. Nothing else.
+// N x [Norm, causal multi-head attention, residual, Norm, MLP, residual],
+// final Norm, unembedding, softmax. The toggles below let you remove or
+// swap parts to reach the attention-only toy models or the modern variants.
+
+export type Activation = 'gelu' | 'relu';
+export type NormKind = 'layernorm' | 'rmsnorm' | 'none';
 
 export interface ModelConfig {
   nLayer: number;
@@ -12,6 +16,9 @@ export interface ModelConfig {
   nCtx: number; // context length = 2 * seqLen - 1
   mlpRatio: number;
   tieWeights: boolean; // GPT-2 ties wte and the unembedding
+  activation: Activation; // GPT-2: gelu (tanh approximation)
+  norm: NormKind; // GPT-2: layernorm
+  mlp: boolean; // false = attention-only blocks
 }
 
 export interface ConfigInput {
@@ -20,6 +27,9 @@ export interface ConfigInput {
   dModel: number;
   seqLen: number;
   tieWeights: boolean;
+  activation?: Activation;
+  norm?: NormKind;
+  mlp?: boolean;
 }
 
 export const VOCAB = 3; // tokens A, B, C for the sort task
@@ -38,14 +48,20 @@ export function makeConfig(p: ConfigInput): ModelConfig {
     nCtx: 2 * p.seqLen - 1,
     mlpRatio: 4,
     tieWeights: p.tieWeights,
+    activation: p.activation ?? 'gelu',
+    norm: p.norm ?? 'layernorm',
+    mlp: p.mlp ?? true,
   };
 }
 
-// The "micro" default the user chose: 2 layers, 2 heads, width 16.
-export const MICRO: ConfigInput = {
+// The "micro" default the user chose: 2 layers, 2 heads, width 16, pure GPT-2.
+export const MICRO: Required<ConfigInput> = {
   nLayer: 2,
   nHead: 2,
   dModel: 16,
   seqLen: 6,
   tieWeights: true,
+  activation: 'gelu',
+  norm: 'layernorm',
+  mlp: true,
 };

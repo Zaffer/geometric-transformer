@@ -2,6 +2,7 @@
 // Every unit is one sphere. Every weight and every bias is one clickable
 // synapse (an instanced cylinder). The same weights apply at every token
 // position; the position whose activations are shown is selectable.
+// Stages appear or vanish with the toggles (norm kind, MLP on/off).
 
 import * as THREE from 'three/webgpu';
 import type { ForwardCache, Transformer } from '../model/transformer';
@@ -70,6 +71,9 @@ export function buildCircuitView(model: Transformer): CircuitView {
   const H = cfg.nHead;
   const F = D * cfg.mlpRatio;
   const dh = D / H;
+  const hasNorm = cfg.norm !== 'none';
+  const normBias = cfg.norm === 'layernorm';
+  const normLabel = cfg.norm === 'rmsnorm' ? 'rms' : 'ln';
 
   const group = new THREE.Group();
   const labels = new THREE.Group();
@@ -77,77 +81,101 @@ export function buildCircuitView(model: Transformer): CircuitView {
 
   const spacingFor = (size: number) => Math.min(0.45, 10 / size);
   const none = (): SelEntry[] => [];
-  const lnEntries = (g: string, b: string) => (i: number): SelEntry[] => [
-    { label: `gain ${g}[${i}]`, tensor: g, index: i },
-    { label: `bias ${b}[${i}]`, tensor: b, index: i },
-  ];
+  const normEntries = (prefix: string) => (i: number): SelEntry[] => {
+    const out: SelEntry[] = [{ label: `gain ${prefix}g[${i}]`, tensor: `${prefix}g`, index: i }];
+    if (normBias) out.push({ label: `bias ${prefix}b[${i}]`, tensor: `${prefix}b`, index: i });
+    return out;
+  };
   const biasEntries = (tensor: string, offset: number) => (i: number): SelEntry[] => [
     { label: `bias ${tensor}[${offset + i}]`, tensor, index: offset + i },
   ];
 
   const stages: Stage[] = [];
-  const stage = (s: Stage): Stage => {
+  const col = (id: string, label: string, size: number, slot: number, yCenter: number,
+    act: Stage['act'], entries: Stage['entries']): Stage => {
+    const s: Stage = { id, label, size, x: slot * XSTEP, yCenter, spacing: spacingFor(size), act, entries };
     stages.push(s);
     return s;
   };
-  const col = (id: string, label: string, size: number, slot: number, yCenter: number,
-    act: Stage['act'], entries: Stage['entries']): Stage =>
-    stage({ id, label, size, x: slot * XSTEP, yCenter, spacing: spacingFor(size), act, entries });
 
-  const tok = col('tok', 'token', V, 0, 4.5, (c, t, i) => (c.tokens[t] === i ? 1 : 0), none);
-  const pos = col('pos', 'position', C, 0, -3.5, (c, t, i) => (t === i ? 1 : 0), none);
-  const x0 = col('x0', 'embed', D, 1, 0, (c, t, i) => c.x0[t * D + i], none);
+  let slot = 0;
+  const tok = col('tok', 'token', V, slot, 4.5, (c, t, i) => (c.tokens[t] === i ? 1 : 0), none);
+  const pos = col('pos', 'position', C, slot, -3.5, (c, t, i) => (t === i ? 1 : 0), none);
+  slot++;
+  const x0 = col('x0', 'embed', D, slot++, 0, (c, t, i) => c.x0[t * D + i], none);
 
   interface BlockStages {
-    ln1: Stage; q: Stage; k: Stage; v: Stage; atty: Stage; attnOut: Stage;
-    resid1: Stage; ln2: Stage; mlpH: Stage; mlpOut: Stage; resid2: Stage;
+    input: Stage; // residual stream entering the block
+    ln1: Stage | null; attnIn: Stage;
+    q: Stage; k: Stage; v: Stage; atty: Stage; attnOut: Stage; resid1: Stage;
+    ln2: Stage | null; mlpH: Stage | null; mlpOut: Stage | null; resid2: Stage | null;
+    out: Stage; // residual stream leaving the block
     headNodes: THREE.Vector3[];
+    labelX: number;
   }
   const blockStages: BlockStages[] = [];
 
   for (let b = 0; b < cfg.nLayer; b++) {
-    const base = 2 + b * 9;
-    const ln1 = col(`b${b}.ln1`, 'ln1', D, base, 0,
-      (c, t, i) => c.blocks[b].ln1.out[t * D + i], lnEntries(`b${b}.ln1g`, `b${b}.ln1b`));
-    const q = col(`b${b}.q`, 'q', D, base + 1, 7,
+    const startSlot = slot;
+    const input = b === 0 ? x0 : blockStages[b - 1].out;
+    let ln1: Stage | null = null;
+    if (hasNorm) {
+      ln1 = col(`b${b}.ln1`, `${normLabel}1`, D, slot++, 0,
+        (c, t, i) => c.blocks[b].ln1.out[t * D + i], normEntries(`b${b}.ln1`));
+    }
+    const attnIn = ln1 ?? input;
+    const qkvSlot = slot++;
+    const q = col(`b${b}.q`, 'q', D, qkvSlot, 7,
       (c, t, i) => c.blocks[b].qkv[t * 3 * D + i], biasEntries(`b${b}.bqkv`, 0));
-    const k = col(`b${b}.k`, 'k', D, base + 1, 0,
+    const k = col(`b${b}.k`, 'k', D, qkvSlot, 0,
       (c, t, i) => c.blocks[b].qkv[t * 3 * D + D + i], biasEntries(`b${b}.bqkv`, D));
-    const v = col(`b${b}.v`, 'v', D, base + 1, -7,
+    const v = col(`b${b}.v`, 'v', D, qkvSlot, -7,
       (c, t, i) => c.blocks[b].qkv[t * 3 * D + 2 * D + i], biasEntries(`b${b}.bqkv`, 2 * D));
-    const atty = col(`b${b}.atty`, 'att mix', D, base + 2, 0,
+    const atty = col(`b${b}.atty`, 'att mix', D, slot++, 0,
       (c, t, i) => c.blocks[b].atty[t * D + i], none);
-    const attnOut = col(`b${b}.attnOut`, 'att out', D, base + 3, 0,
+    const attnOut = col(`b${b}.attnOut`, 'att out', D, slot++, 0,
       (c, t, i) => c.blocks[b].attnOut[t * D + i], biasEntries(`b${b}.bo`, 0));
-    const resid1 = col(`b${b}.resid1`, '+', D, base + 4, 0,
+    const resid1 = col(`b${b}.resid1`, '+', D, slot++, 0,
       (c, t, i) => c.blocks[b].resid1[t * D + i], none);
-    const ln2 = col(`b${b}.ln2`, 'ln2', D, base + 5, 0,
-      (c, t, i) => c.blocks[b].ln2.out[t * D + i], lnEntries(`b${b}.ln2g`, `b${b}.ln2b`));
-    const mlpH = col(`b${b}.mlpH`, 'mlp gelu', F, base + 6, 0,
-      (c, t, i) => c.blocks[b].hact[t * F + i], biasEntries(`b${b}.bfc`, 0));
-    const mlpOut = col(`b${b}.mlpOut`, 'mlp out', D, base + 7, 0,
-      (c, t, i) => c.blocks[b].mlpOut[t * D + i], biasEntries(`b${b}.bproj`, 0));
-    const resid2 = col(`b${b}.resid2`, '+', D, base + 8, 0,
-      (c, t, i) => c.blocks[b].resid2[t * D + i], none);
+
+    let ln2: Stage | null = null;
+    let mlpH: Stage | null = null;
+    let mlpOut: Stage | null = null;
+    let resid2: Stage | null = null;
+    if (cfg.mlp) {
+      if (hasNorm) {
+        ln2 = col(`b${b}.ln2`, `${normLabel}2`, D, slot++, 0,
+          (c, t, i) => c.blocks[b].ln2!.out[t * D + i], normEntries(`b${b}.ln2`));
+      }
+      mlpH = col(`b${b}.mlpH`, `mlp ${cfg.activation}`, F, slot++, 0,
+        (c, t, i) => c.blocks[b].hact![t * F + i], biasEntries(`b${b}.bfc`, 0));
+      mlpOut = col(`b${b}.mlpOut`, 'mlp out', D, slot++, 0,
+        (c, t, i) => c.blocks[b].mlpOut![t * D + i], biasEntries(`b${b}.bproj`, 0));
+      resid2 = col(`b${b}.resid2`, '+', D, slot++, 0,
+        (c, t, i) => c.blocks[b].resid2[t * D + i], none);
+    }
 
     const headNodes: THREE.Vector3[] = [];
     for (let h = 0; h < H; h++) {
-      headNodes.push(new THREE.Vector3(
-        (base + 1.5) * XSTEP,
-        ((H - 1) / 2 - h) * 3.5,
-        0.8,
-      ));
+      headNodes.push(new THREE.Vector3((qkvSlot + 0.5) * XSTEP, ((H - 1) / 2 - h) * 3.5, 0.8));
     }
-    blockStages.push({ ln1, q, k, v, atty, attnOut, resid1, ln2, mlpH, mlpOut, resid2, headNodes });
+    blockStages.push({
+      input, ln1, attnIn, q, k, v, atty, attnOut, resid1, ln2, mlpH, mlpOut, resid2,
+      out: resid2 ?? resid1,
+      headNodes,
+      labelX: ((startSlot + slot - 1) / 2) * XSTEP,
+    });
   }
 
-  const lnfSlot = 2 + cfg.nLayer * 9;
-  const lnf = col('lnf', 'ln f', D, lnfSlot, 0,
-    (c, t, i) => c.lnf.out[t * D + i], lnEntries('lnfg', 'lnfb'));
-  const logits = col('logits', 'logits', V, lnfSlot + 1, 0,
-    (c, t, i) => c.logits[t * V + i], none);
+  const lastOut = blockStages[cfg.nLayer - 1].out;
+  let lnf: Stage | null = null;
+  if (hasNorm) {
+    lnf = col('lnf', `${normLabel} f`, D, slot++, 0, (c, t, i) => c.lnf.out[t * D + i], normEntries('lnf'));
+  }
+  const unembedIn = lnf ?? lastOut;
+  const logits = col('logits', 'logits', V, slot++, 0, (c, t, i) => c.logits[t * V + i], none);
 
-  const width = (lnfSlot + 1) * XSTEP;
+  const width = (slot - 1) * XSTEP;
 
   const unitPos = (s: Stage, i: number): THREE.Vector3 =>
     new THREE.Vector3(s.x, s.yCenter + ((s.size - 1) / 2 - i) * s.spacing, 0);
@@ -189,8 +217,7 @@ export function buildCircuitView(model: Transformer): CircuitView {
     if (cur) cur.specs.push(...specs);
     else edgeSpecs.set(tensor, { kind, specs });
   };
-  const denseEdges = (tensor: string, from: Stage, to: Stage,
-    index: (i: number, j: number) => number): EdgeSpec[] => {
+  const denseEdges = (from: Stage, to: Stage, index: (i: number, j: number) => number): EdgeSpec[] => {
     const specs: EdgeSpec[] = [];
     for (let i = 0; i < from.size; i++) {
       const a = unitPos(from, i);
@@ -200,7 +227,7 @@ export function buildCircuitView(model: Transformer): CircuitView {
     }
     return specs;
   };
-  const biasEdges = (tensor: string, node: THREE.Vector3, to: Stage, offset: number): EdgeSpec[] => {
+  const biasEdges = (node: THREE.Vector3, to: Stage, offset: number): EdgeSpec[] => {
     const specs: EdgeSpec[] = [];
     for (let j = 0; j < to.size; j++) {
       specs.push({ from: node, to: unitPos(to, j), index: offset + j, i: -1, j: offset + j });
@@ -208,39 +235,42 @@ export function buildCircuitView(model: Transformer): CircuitView {
     return specs;
   };
 
-  addEdges('wte', 'weight', denseEdges('wte', tok, x0, (i, j) => i * D + j));
-  addEdges('wpe', 'weight', denseEdges('wpe', pos, x0, (i, j) => i * D + j));
+  addEdges('wte', 'weight', denseEdges(tok, x0, (i, j) => i * D + j));
+  addEdges('wpe', 'weight', denseEdges(pos, x0, (i, j) => i * D + j));
 
   for (let b = 0; b < cfg.nLayer; b++) {
     const s = blockStages[b];
     addEdges(`b${b}.wqkv`, 'weight', [
-      ...denseEdges(`b${b}.wqkv`, s.ln1, s.q, (i, j) => i * 3 * D + j),
-      ...denseEdges(`b${b}.wqkv`, s.ln1, s.k, (i, j) => i * 3 * D + D + j),
-      ...denseEdges(`b${b}.wqkv`, s.ln1, s.v, (i, j) => i * 3 * D + 2 * D + j),
+      ...denseEdges(s.attnIn, s.q, (i, j) => i * 3 * D + j),
+      ...denseEdges(s.attnIn, s.k, (i, j) => i * 3 * D + D + j),
+      ...denseEdges(s.attnIn, s.v, (i, j) => i * 3 * D + 2 * D + j),
     ]);
-    addEdges(`b${b}.wo`, 'weight', denseEdges(`b${b}.wo`, s.atty, s.attnOut, (i, j) => i * D + j));
-    addEdges(`b${b}.wfc`, 'weight', denseEdges(`b${b}.wfc`, s.ln2, s.mlpH, (i, j) => i * F + j));
-    addEdges(`b${b}.wproj`, 'weight', denseEdges(`b${b}.wproj`, s.mlpH, s.mlpOut, (i, j) => i * D + j));
-
+    addEdges(`b${b}.wo`, 'weight', denseEdges(s.atty, s.attnOut, (i, j) => i * D + j));
     const nqkv = biasNode(`b${b}.bqkv`, s.q.x, -13);
     addEdges(`b${b}.bqkv`, 'bias', [
-      ...biasEdges(`b${b}.bqkv`, nqkv, s.q, 0),
-      ...biasEdges(`b${b}.bqkv`, nqkv, s.k, D),
-      ...biasEdges(`b${b}.bqkv`, nqkv, s.v, 2 * D),
+      ...biasEdges(nqkv, s.q, 0),
+      ...biasEdges(nqkv, s.k, D),
+      ...biasEdges(nqkv, s.v, 2 * D),
     ]);
-    addEdges(`b${b}.bo`, 'bias', biasEdges(`b${b}.bo`, biasNode(`b${b}.bo`, s.attnOut.x, -7), s.attnOut, 0));
-    addEdges(`b${b}.bfc`, 'bias', biasEdges(`b${b}.bfc`, biasNode(`b${b}.bfc`, s.mlpH.x, -8.5), s.mlpH, 0));
-    addEdges(`b${b}.bproj`, 'bias', biasEdges(`b${b}.bproj`, biasNode(`b${b}.bproj`, s.mlpOut.x, -7), s.mlpOut, 0));
+    addEdges(`b${b}.bo`, 'bias', biasEdges(biasNode(`b${b}.bo`, s.attnOut.x, -7), s.attnOut, 0));
+
+    if (cfg.mlp && s.mlpH && s.mlpOut) {
+      const mlpIn = s.ln2 ?? s.resid1;
+      addEdges(`b${b}.wfc`, 'weight', denseEdges(mlpIn, s.mlpH, (i, j) => i * F + j));
+      addEdges(`b${b}.wproj`, 'weight', denseEdges(s.mlpH, s.mlpOut, (i, j) => i * D + j));
+      addEdges(`b${b}.bfc`, 'bias', biasEdges(biasNode(`b${b}.bfc`, s.mlpH.x, -8.5), s.mlpH, 0));
+      addEdges(`b${b}.bproj`, 'bias', biasEdges(biasNode(`b${b}.bproj`, s.mlpOut.x, -7), s.mlpOut, 0));
+    }
   }
 
   if (cfg.tieWeights) {
-    addEdges('wte', 'weight', denseEdges('wte', lnf, logits, (i, j) => j * D + i));
+    addEdges('wte', 'weight', denseEdges(unembedIn, logits, (i, j) => j * D + i));
   } else {
-    addEdges('wun', 'weight', denseEdges('wun', lnf, logits, (i, j) => i * V + j));
+    addEdges('wun', 'weight', denseEdges(unembedIn, logits, (i, j) => i * V + j));
   }
 
   // Build one InstancedMesh per tensor.
-  const cylGeom = new THREE.CylinderGeometry(1, 1, 1, 5, 1);
+  const cylGeom = new THREE.CylinderGeometry(1, 1, 1, 3, 1);
   const edgeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const groups: EdgeGroup[] = [];
   const up = new THREE.Vector3(0, 1, 0);
@@ -310,13 +340,14 @@ export function buildCircuitView(model: Transformer): CircuitView {
   };
   for (let b = 0; b < cfg.nLayer; b++) {
     const s = blockStages[b];
-    const input = b === 0 ? x0 : blockStages[b - 1].resid2;
-    flow(input, s.ln1);
-    flow(input, s.resid1); // residual skip
+    if (s.ln1) flow(s.input, s.ln1);
+    flow(s.input, s.resid1); // residual skip
     flow(s.attnOut, s.resid1);
-    flow(s.resid1, s.ln2);
-    flow(s.resid1, s.resid2); // residual skip
-    flow(s.mlpOut, s.resid2);
+    if (s.resid2 && s.mlpOut) {
+      if (s.ln2) flow(s.resid1, s.ln2);
+      flow(s.resid1, s.resid2); // residual skip
+      flow(s.mlpOut, s.resid2);
+    }
     flow(s.v, s.atty);
     for (let h = 0; h < H; h++) {
       const node = s.headNodes[h];
@@ -327,7 +358,7 @@ export function buildCircuitView(model: Transformer): CircuitView {
       }
     }
   }
-  flow(blockStages[cfg.nLayer - 1].resid2, lnf);
+  if (lnf) flow(lastOut, lnf);
   const structGeom = new THREE.BufferGeometry().setFromPoints(structural);
   const structLines = new THREE.LineSegments(
     structGeom,
@@ -345,7 +376,7 @@ export function buildCircuitView(model: Transformer): CircuitView {
   }
   for (let b = 0; b < cfg.nLayer; b++) {
     const l = makeLabel(`block ${b}`, 1.0, '#7f8ea3');
-    l.position.set((2 + b * 9 + 4) * XSTEP, 12.5, 0);
+    l.position.set(blockStages[b].labelX, 12.5, 0);
     labels.add(l);
   }
   for (let i = 0; i < V; i++) {

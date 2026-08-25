@@ -1,8 +1,12 @@
 // A complete GPT-2 style transformer with hand-written forward and backward
 // passes on plain Float32Arrays. Every parameter is a scalar in a named
 // Tensor, so the visualization can address, read, and write each one.
+//
+// Toggles (see config.ts): activation gelu|relu, norm layernorm|rmsnorm|none,
+// mlp on|off. With norm 'none' and mlp off the blocks are attention-only,
+// which is the toy model of Anthropic's "Mathematical Framework".
 
-import type { ModelConfig } from './config';
+import type { Activation, ModelConfig, NormKind } from './config';
 import { RNG } from './rng';
 
 export interface Tensor {
@@ -16,24 +20,24 @@ export interface Tensor {
   decay: boolean; // weight decay applies (2D matmul weights only)
 }
 
-export interface LNCache {
-  xhat: Float32Array; // T x D normalized input
-  rstd: Float32Array; // T reciprocal std
-  out: Float32Array; // T x D output
+export interface NormCache {
+  xhat: Float32Array; // T x D normalized input (aliases x when norm is 'none')
+  rstd: Float32Array; // T reciprocal std (or rms)
+  out: Float32Array; // T x D output (aliases x when norm is 'none')
 }
 
 export interface BlockCache {
-  ln1: LNCache;
+  ln1: NormCache;
   qkv: Float32Array; // T x 3D
   att: Float32Array; // H x T x T attention probabilities
   atty: Float32Array; // T x D concatenated head outputs, before wo
   attnOut: Float32Array; // T x D
   resid1: Float32Array; // T x D after attention residual
-  ln2: LNCache;
-  h: Float32Array; // T x F pre-GELU
-  hact: Float32Array; // T x F post-GELU
-  mlpOut: Float32Array; // T x D
-  resid2: Float32Array; // T x D after MLP residual
+  ln2: NormCache | null; // null when the MLP is off
+  h: Float32Array | null; // T x F pre-activation
+  hact: Float32Array | null; // T x F post-activation
+  mlpOut: Float32Array | null; // T x D
+  resid2: Float32Array; // T x D block output (aliases resid1 when the MLP is off)
 }
 
 export interface ForwardCache {
@@ -41,16 +45,22 @@ export interface ForwardCache {
   tokens: Int32Array;
   x0: Float32Array; // T x D token + position embedding
   blocks: BlockCache[];
-  lnf: LNCache;
+  lnf: NormCache;
   logits: Float32Array; // T x V
   probs: Float32Array; // T x V
 }
 
+// ---- activation functions ----
+
 const GELU_C = Math.sqrt(2 / Math.PI);
 const GELU_A = 0.044715;
 
-function geluForward(x: Float32Array): Float32Array {
+function actForward(x: Float32Array, kind: Activation): Float32Array {
   const out = new Float32Array(x.length);
+  if (kind === 'relu') {
+    for (let i = 0; i < x.length; i++) out[i] = x[i] > 0 ? x[i] : 0;
+    return out;
+  }
   for (let i = 0; i < x.length; i++) {
     const v = x[i];
     const u = GELU_C * (v + GELU_A * v * v * v);
@@ -59,8 +69,12 @@ function geluForward(x: Float32Array): Float32Array {
   return out;
 }
 
-function geluBackward(dy: Float32Array, x: Float32Array): Float32Array {
+function actBackward(dy: Float32Array, x: Float32Array, kind: Activation): Float32Array {
   const dx = new Float32Array(x.length);
+  if (kind === 'relu') {
+    for (let i = 0; i < x.length; i++) dx[i] = x[i] > 0 ? dy[i] : 0;
+    return dx;
+  }
   for (let i = 0; i < x.length; i++) {
     const v = x[i];
     const u = GELU_C * (v + GELU_A * v * v * v);
@@ -71,6 +85,8 @@ function geluBackward(dy: Float32Array, x: Float32Array): Float32Array {
   }
   return dx;
 }
+
+// ---- linear layers ----
 
 // y[T x OUT] = x[T x IN] @ W[IN x OUT] + b[1 x OUT]
 function linearForward(
@@ -127,50 +143,58 @@ function linearBackward(
   return dx;
 }
 
-const LN_EPS = 1e-5;
+// ---- normalization ----
 
-function layerNormForward(
+const NORM_EPS = 1e-5;
+
+function normForward(
   x: Float32Array,
-  g: Float32Array,
-  b: Float32Array,
+  g: Float32Array | null,
+  b: Float32Array | null,
   T: number,
   D: number,
-): LNCache {
+  kind: NormKind,
+): NormCache {
+  if (kind === 'none') return { out: x, xhat: x, rstd: new Float32Array(0) };
   const out = new Float32Array(T * D);
   const xhat = new Float32Array(T * D);
   const rstd = new Float32Array(T);
   for (let t = 0; t < T; t++) {
     const o = t * D;
     let mean = 0;
-    for (let d = 0; d < D; d++) mean += x[o + d];
-    mean /= D;
-    let variance = 0;
+    if (kind === 'layernorm') {
+      for (let d = 0; d < D; d++) mean += x[o + d];
+      mean /= D;
+    }
+    let ms = 0;
     for (let d = 0; d < D; d++) {
       const c = x[o + d] - mean;
-      variance += c * c;
+      ms += c * c;
     }
-    variance /= D;
-    const r = 1 / Math.sqrt(variance + LN_EPS);
+    ms /= D;
+    const r = 1 / Math.sqrt(ms + NORM_EPS);
     rstd[t] = r;
     for (let d = 0; d < D; d++) {
       const xh = (x[o + d] - mean) * r;
       xhat[o + d] = xh;
-      out[o + d] = g[d] * xh + b[d];
+      out[o + d] = g![d] * xh + (b ? b[d] : 0);
     }
   }
   return { out, xhat, rstd };
 }
 
-// Accumulates dg, db; returns dx.
-function layerNormBackward(
+// Accumulates dg (and db for layernorm); returns dx.
+function normBackward(
   dy: Float32Array,
-  cache: LNCache,
-  g: Float32Array,
-  dg: Float32Array,
-  db: Float32Array,
+  cache: NormCache,
+  g: Float32Array | null,
+  dg: Float32Array | null,
+  db: Float32Array | null,
   T: number,
   D: number,
+  kind: NormKind,
 ): Float32Array {
+  if (kind === 'none') return dy;
   const { xhat, rstd } = cache;
   const dx = new Float32Array(T * D);
   for (let t = 0; t < T; t++) {
@@ -180,18 +204,20 @@ function layerNormBackward(
     for (let d = 0; d < D; d++) {
       const dyv = dy[o + d];
       const xh = xhat[o + d];
-      dg[d] += dyv * xh;
-      db[d] += dyv;
-      const dxh = dyv * g[d];
+      dg![d] += dyv * xh;
+      if (db) db[d] += dyv;
+      const dxh = dyv * g![d];
       meanDxhat += dxh;
       meanDxhatXhat += dxh * xh;
     }
     meanDxhat /= D;
     meanDxhatXhat /= D;
     const r = rstd[t];
+    // RMSNorm has no mean subtraction, so the meanDxhat term drops.
+    const centering = kind === 'layernorm' ? meanDxhat : 0;
     for (let d = 0; d < D; d++) {
-      const dxh = dy[o + d] * g[d];
-      dx[o + d] = r * (dxh - meanDxhat - xhat[o + d] * meanDxhatXhat);
+      const dxh = dy[o + d] * g![d];
+      dx[o + d] = r * (dxh - centering - xhat[o + d] * meanDxhatXhat);
     }
   }
   return dx;
@@ -218,6 +244,8 @@ export class Transformer {
     const std = 0.02;
     // GPT-2 scales residual-branch projections by 1/sqrt(2 * nLayer).
     const resStd = std / Math.sqrt(2 * cfg.nLayer);
+    const hasNorm = cfg.norm !== 'none';
+    const normBias = cfg.norm === 'layernorm';
 
     const add = (
       name: string,
@@ -248,25 +276,29 @@ export class Transformer {
       this.byName.set(name, t);
       return t;
     };
+    const addNorm = (prefix: string) => {
+      if (!hasNorm) return;
+      add(`${prefix}g`, 1, D, 'ones');
+      if (normBias) add(`${prefix}b`, 1, D, 'zeros');
+    };
 
     add('wte', V, D, 'randn', std, true);
     add('wpe', C, D, 'randn', std, true);
     for (let b = 0; b < cfg.nLayer; b++) {
-      add(`b${b}.ln1g`, 1, D, 'ones');
-      add(`b${b}.ln1b`, 1, D, 'zeros');
+      addNorm(`b${b}.ln1`);
       add(`b${b}.wqkv`, D, 3 * D, 'randn', std, true);
       add(`b${b}.bqkv`, 1, 3 * D, 'zeros');
       add(`b${b}.wo`, D, D, 'randn', resStd, true);
       add(`b${b}.bo`, 1, D, 'zeros');
-      add(`b${b}.ln2g`, 1, D, 'ones');
-      add(`b${b}.ln2b`, 1, D, 'zeros');
-      add(`b${b}.wfc`, D, F, 'randn', std, true);
-      add(`b${b}.bfc`, 1, F, 'zeros');
-      add(`b${b}.wproj`, F, D, 'randn', resStd, true);
-      add(`b${b}.bproj`, 1, D, 'zeros');
+      if (cfg.mlp) {
+        addNorm(`b${b}.ln2`);
+        add(`b${b}.wfc`, D, F, 'randn', std, true);
+        add(`b${b}.bfc`, 1, F, 'zeros');
+        add(`b${b}.wproj`, F, D, 'randn', resStd, true);
+        add(`b${b}.bproj`, 1, D, 'zeros');
+      }
     }
-    add('lnfg', 1, D, 'ones');
-    add('lnfb', 1, D, 'zeros');
+    addNorm('lnf');
     if (!cfg.tieWeights) add('wun', D, V, 'randn', std, true);
   }
 
@@ -288,6 +320,28 @@ export class Transformer {
 
   zeroGrads(): void {
     for (const p of this.params) p.grad.fill(0);
+  }
+
+  // Norm parameters for a prefix like "b0.ln1"; nulls when absent.
+  private normTensors(prefix: string): { g: Tensor | null; b: Tensor | null } {
+    return {
+      g: this.byName.get(`${prefix}g`) ?? null,
+      b: this.byName.get(`${prefix}b`) ?? null,
+    };
+  }
+
+  private norm(x: Float32Array, prefix: string, T: number): NormCache {
+    const { g, b } = this.normTensors(prefix);
+    return normForward(x, g ? g.data : null, b ? b.data : null, T, this.cfg.dModel, this.cfg.norm);
+  }
+
+  private normBack(dy: Float32Array, cache: NormCache, prefix: string, T: number): Float32Array {
+    const { g, b } = this.normTensors(prefix);
+    return normBackward(
+      dy, cache,
+      g ? g.data : null, g ? g.grad : null, b ? b.grad : null,
+      T, this.cfg.dModel, this.cfg.norm,
+    );
   }
 
   forward(tokens: Int32Array): ForwardCache {
@@ -312,7 +366,7 @@ export class Transformer {
     const scratch = new Float32Array(T);
 
     for (let b = 0; b < this.cfg.nLayer; b++) {
-      const ln1 = layerNormForward(x, this.get(`b${b}.ln1g`).data, this.get(`b${b}.ln1b`).data, T, D);
+      const ln1 = this.norm(x, `b${b}.ln1`, T);
       const qkv = linearForward(ln1.out, this.get(`b${b}.wqkv`).data, this.get(`b${b}.bqkv`).data, T, D, 3 * D);
 
       const att = new Float32Array(H * T * T);
@@ -348,17 +402,25 @@ export class Transformer {
 
       const attnOut = linearForward(atty, this.get(`b${b}.wo`).data, this.get(`b${b}.bo`).data, T, D, D);
       const resid1 = addInto(x, attnOut);
-      const ln2 = layerNormForward(resid1, this.get(`b${b}.ln2g`).data, this.get(`b${b}.ln2b`).data, T, D);
-      const h = linearForward(ln2.out, this.get(`b${b}.wfc`).data, this.get(`b${b}.bfc`).data, T, D, F);
-      const hact = geluForward(h);
-      const mlpOut = linearForward(hact, this.get(`b${b}.wproj`).data, this.get(`b${b}.bproj`).data, T, F, D);
-      const resid2 = addInto(resid1, mlpOut);
+
+      let ln2: NormCache | null = null;
+      let h: Float32Array | null = null;
+      let hact: Float32Array | null = null;
+      let mlpOut: Float32Array | null = null;
+      let resid2 = resid1;
+      if (this.cfg.mlp) {
+        ln2 = this.norm(resid1, `b${b}.ln2`, T);
+        h = linearForward(ln2.out, this.get(`b${b}.wfc`).data, this.get(`b${b}.bfc`).data, T, D, F);
+        hact = actForward(h, this.cfg.activation);
+        mlpOut = linearForward(hact, this.get(`b${b}.wproj`).data, this.get(`b${b}.bproj`).data, T, F, D);
+        resid2 = addInto(resid1, mlpOut);
+      }
 
       blocks.push({ ln1, qkv, att, atty, attnOut, resid1, ln2, h, hact, mlpOut, resid2 });
       x = resid2;
     }
 
-    const lnf = layerNormForward(x, this.get('lnfg').data, this.get('lnfb').data, T, D);
+    const lnf = this.norm(x, 'lnf', T);
     const logits = new Float32Array(T * V);
     if (this.cfg.tieWeights) {
       for (let t = 0; t < T; t++) {
@@ -448,22 +510,22 @@ export class Transformer {
       }
     }
 
-    const lnfg = this.get('lnfg');
-    let dx = layerNormBackward(dnormedF, cache.lnf, lnfg.data, lnfg.grad, this.get('lnfb').grad, T, D);
+    let dx = this.normBack(dnormedF, cache.lnf, 'lnf', T);
 
     for (let b = this.cfg.nLayer - 1; b >= 0; b--) {
       const blk = cache.blocks[b];
 
-      // resid2 = resid1 + mlpOut
-      const dmlpOut = dx;
-      const wproj = this.get(`b${b}.wproj`);
-      const dhact = linearBackward(dmlpOut, blk.hact, wproj.data, wproj.grad, this.get(`b${b}.bproj`).grad, T, F, D);
-      const dhpre = geluBackward(dhact, blk.h);
-      const wfc = this.get(`b${b}.wfc`);
-      const dnormed2 = linearBackward(dhpre, blk.ln2.out, wfc.data, wfc.grad, this.get(`b${b}.bfc`).grad, T, D, F);
-      const ln2g = this.get(`b${b}.ln2g`);
-      const dresidFromLn2 = layerNormBackward(dnormed2, blk.ln2, ln2g.data, ln2g.grad, this.get(`b${b}.ln2b`).grad, T, D);
-      const dresid1 = addInto(dx, dresidFromLn2);
+      // resid2 = resid1 + mlpOut (or resid2 = resid1 when the MLP is off)
+      let dresid1 = dx;
+      if (this.cfg.mlp) {
+        const wproj = this.get(`b${b}.wproj`);
+        const dhact = linearBackward(dx, blk.hact!, wproj.data, wproj.grad, this.get(`b${b}.bproj`).grad, T, F, D);
+        const dhpre = actBackward(dhact, blk.h!, this.cfg.activation);
+        const wfc = this.get(`b${b}.wfc`);
+        const dnormed2 = linearBackward(dhpre, blk.ln2!.out, wfc.data, wfc.grad, this.get(`b${b}.bfc`).grad, T, D, F);
+        const dresidFromLn2 = this.normBack(dnormed2, blk.ln2!, `b${b}.ln2`, T);
+        dresid1 = addInto(dx, dresidFromLn2);
+      }
 
       // resid1 = x + attnOut
       const dattnOut = dresid1;
@@ -505,8 +567,7 @@ export class Transformer {
 
       const wqkv = this.get(`b${b}.wqkv`);
       const dnormed1 = linearBackward(dqkv, blk.ln1.out, wqkv.data, wqkv.grad, this.get(`b${b}.bqkv`).grad, T, D, 3 * D);
-      const ln1g = this.get(`b${b}.ln1g`);
-      const dxFromLn1 = layerNormBackward(dnormed1, blk.ln1, ln1g.data, ln1g.grad, this.get(`b${b}.ln1b`).grad, T, D);
+      const dxFromLn1 = this.normBack(dnormed1, blk.ln1, `b${b}.ln1`, T);
       dx = addInto(dresid1, dxFromLn1);
     }
 

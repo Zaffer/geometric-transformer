@@ -32,6 +32,16 @@ SwiGLU. The forward pass, the backward pass, and AdamW are hand-written on
 plain Float32Arrays (`src/model/`). The backward pass is verified against
 numeric gradients (`tests/gradcheck.test.ts`).
 
+Three toggles remove or swap parts of the block, so the same app reaches
+the attention-only toy models of Anthropic's "Mathematical Framework" and
+the modern variants:
+
+- **activation**: `gelu` (GPT-2) or `relu` (exact polytopes, the polytopy lens)
+- **norm**: `layernorm` (GPT-2), `rmsnorm` (gain only, Llama style), or `none`
+- **mlp**: on (GPT-2) or off (attention-only blocks)
+
+The gradient check runs on every toggle combination that matters.
+
 The task is the minGPT sort demo: the model reads 6 tokens from {A, B, C}
 and emits them in sorted order. Default size ("micro"): 2 layers, 2 heads,
 width 16, ~6.8k parameters. All dimensions are adjustable at run time.
@@ -83,5 +93,5 @@ vendor/        plainpanel (single-file ESM + css + types)
 - Geometry panels: how GELU carves soft regions in the residual stream,
   logit-lens projections, 2D slices of the prediction space (the polytopy
   lens, extended to attention).
-- In-place buffer updates during training bursts, hover highlighting,
-  weight editing by mouse wheel on the synapse.
+- More toggles: biases on/off, RoPE, SwiGLU; a modular-addition task.
+- Hover highlighting, weight editing by mouse wheel on the synapse.

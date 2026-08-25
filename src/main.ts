@@ -23,6 +23,9 @@ s.nHead(MICRO.nHead);
 s.dModel(MICRO.dModel);
 s.seqLen(MICRO.seqLen);
 s.tieWeights(MICRO.tieWeights);
+s.activation(MICRO.activation);
+s.norm(MICRO.norm);
+s.mlp(MICRO.mlp);
 
 async function boot(): Promise<void> {
   const container = document.getElementById('scene')!;
@@ -45,6 +48,9 @@ async function boot(): Promise<void> {
       dModel: s.dModel(),
       seqLen: s.seqLen(),
       tieWeights: s.tieWeights(),
+      activation: s.activation(),
+      norm: s.norm(),
+      mlp: s.mlp(),
     });
     model = new Transformer(cfg, seed);
     trainer = new Trainer(model, untracked(() => s.lr()));
@@ -99,6 +105,9 @@ async function boot(): Promise<void> {
     s.dModel();
     s.seqLen();
     s.tieWeights();
+    s.activation();
+    s.norm();
+    s.mlp();
     untracked(rebuild);
   });
 

@@ -59,3 +59,8 @@ export function bumpParams(): void {
 export function bumpSample(): void {
   sampleVersion(sampleVersion() + 1);
 }
+
+// Architecture toggles (a change rebuilds the model).
+export const activation = signal<'gelu' | 'relu'>('gelu');
+export const norm = signal<'layernorm' | 'rmsnorm' | 'none'>('layernorm');
+export const mlp = signal(true);

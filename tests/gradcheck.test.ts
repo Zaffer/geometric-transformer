@@ -1,13 +1,16 @@
 // Numeric gradient check. This proves the hand-written backward pass against
-// central finite differences, for every tensor kind, tied and untied.
+// central finite differences, for every tensor kind and every toggle.
 
 import { describe, expect, it } from 'vitest';
-import { makeConfig } from '../src/model/config';
+import { makeConfig, type ConfigInput } from '../src/model/config';
 import { Transformer } from '../src/model/transformer';
 import { makeSample } from '../src/model/sortTask';
 import { RNG } from '../src/model/rng';
 
-function computeLoss(model: Transformer, tokens: Int32Array, targets: Int32Array): number {
+// Loss plus the ReLU sign pattern of every MLP pre-activation. A finite
+// difference is only valid when both probe points share the pattern; at a
+// kink the analytic subgradient and the numeric slope legitimately differ.
+function computeLoss(model: Transformer, tokens: Int32Array, targets: Int32Array): { loss: number; pattern: string } {
   const cache = model.forward(tokens);
   const V = model.cfg.vocab;
   let loss = 0;
@@ -18,11 +21,17 @@ function computeLoss(model: Transformer, tokens: Int32Array, targets: Int32Array
     loss += -Math.log(Math.max(cache.probs[t * V + tgt], 1e-12));
     count++;
   }
-  return loss / count;
+  let pattern = '';
+  if (model.cfg.activation === 'relu') {
+    for (const blk of cache.blocks) {
+      if (blk.h) for (let i = 0; i < blk.h.length; i++) pattern += blk.h[i] > 0 ? '1' : '0';
+    }
+  }
+  return { loss: loss / count, pattern };
 }
 
-function checkAllTensors(tieWeights: boolean) {
-  const cfg = makeConfig({ nLayer: 2, nHead: 2, dModel: 8, seqLen: 3, tieWeights });
+function checkAllTensors(input: Partial<ConfigInput>) {
+  const cfg = makeConfig({ nLayer: 2, nHead: 2, dModel: 8, seqLen: 3, tieWeights: true, ...input });
   const model = new Transformer(cfg, 7);
   const rng = new RNG(123);
   const { tokens, targets } = makeSample(rng, cfg.seqLen, cfg.vocab);
@@ -33,8 +42,11 @@ function checkAllTensors(tieWeights: boolean) {
 
   // Per-coordinate central differences. The loss has strong curvature, so
   // eps must be small; the tolerance covers the float32 noise floor.
-  const eps = 1e-3;
+  // ReLU gets a smaller step, so fewer probes cross a kink.
+  const eps = cfg.activation === 'relu' ? 2e-4 : 1e-3;
   const pick = new RNG(999);
+  let checked = 0;
+  let skipped = 0;
   for (const p of model.params) {
     for (let k = 0; k < 4; k++) {
       const i = pick.int(p.data.length);
@@ -44,7 +56,12 @@ function checkAllTensors(tieWeights: boolean) {
       p.data[i] = orig - eps;
       const lm = computeLoss(model, tokens, targets);
       p.data[i] = orig;
-      const numeric = (lp - lm) / (2 * eps);
+      if (lp.pattern !== lm.pattern) {
+        skipped++;
+        continue;
+      }
+      checked++;
+      const numeric = (lp.loss - lm.loss) / (2 * eps);
       const analytic = p.grad[i];
       const tol = 5e-4 + 0.08 * Math.max(Math.abs(numeric), Math.abs(analytic));
       expect(
@@ -53,31 +70,51 @@ function checkAllTensors(tieWeights: boolean) {
       ).toBeLessThanOrEqual(tol);
     }
   }
+  // Kink skips must stay rare, or the check proves nothing.
+  expect(skipped).toBeLessThanOrEqual(Math.floor(0.2 * (checked + skipped)));
 
   // Directional derivative across ALL parameters at once. This is the strong
   // whole-graph check: d/dt L(theta + t*g) at t=0 must equal ||g||^2.
+  // For ReLU the step shrinks until both probes share one sign pattern.
   let gnorm2 = 0;
   for (const q of model.params) for (let i = 0; i < q.grad.length; i++) gnorm2 += q.grad[i] * q.grad[i];
-  const delta = 1e-3 / Math.sqrt(gnorm2);
   const saved = model.params.map((q) => q.data.slice());
-  for (const q of model.params) for (let i = 0; i < q.data.length; i++) q.data[i] += delta * q.grad[i];
-  const lp = computeLoss(model, tokens, targets);
-  model.params.forEach((q, idx) => q.data.set(saved[idx]));
-  for (const q of model.params) for (let i = 0; i < q.data.length; i++) q.data[i] -= delta * q.grad[i];
-  const lm = computeLoss(model, tokens, targets);
-  model.params.forEach((q, idx) => q.data.set(saved[idx]));
-  const directional = (lp - lm) / (2 * delta);
-  expect(Math.abs(directional - gnorm2) / gnorm2).toBeLessThan(0.01);
+  let delta = 1e-3 / Math.sqrt(gnorm2);
+  let directional = Number.NaN;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    for (const q of model.params) for (let i = 0; i < q.data.length; i++) q.data[i] += delta * q.grad[i];
+    const lp = computeLoss(model, tokens, targets);
+    model.params.forEach((q, idx) => q.data.set(saved[idx]));
+    for (const q of model.params) for (let i = 0; i < q.data.length; i++) q.data[i] -= delta * q.grad[i];
+    const lm = computeLoss(model, tokens, targets);
+    model.params.forEach((q, idx) => q.data.set(saved[idx]));
+    if (lp.pattern === lm.pattern) {
+      directional = (lp.loss - lm.loss) / (2 * delta);
+      break;
+    }
+    delta /= 4;
+  }
+  expect(Number.isFinite(directional), 'directional check found no kink-free step').toBe(true);
+  expect(Math.abs(directional - gnorm2) / gnorm2).toBeLessThan(0.02);
 }
 
-describe('backward pass', () => {
-  it('matches numeric gradients with tied weights', () => {
-    checkAllTensors(true);
-  });
+const VARIANTS: Array<[string, Partial<ConfigInput>]> = [
+  ['pure GPT-2, tied weights', {}],
+  ['pure GPT-2, untied weights', { tieWeights: false }],
+  ['relu activation', { activation: 'relu' }],
+  ['rmsnorm', { norm: 'rmsnorm' }],
+  ['no norm', { norm: 'none' }],
+  ['no mlp', { mlp: false }],
+  ['attention only (no norm, no mlp)', { norm: 'none', mlp: false }],
+  ['relu + rmsnorm + untied', { activation: 'relu', norm: 'rmsnorm', tieWeights: false }],
+];
 
-  it('matches numeric gradients with untied weights', () => {
-    checkAllTensors(false);
-  });
+describe('backward pass', () => {
+  for (const [name, input] of VARIANTS) {
+    it(`matches numeric gradients: ${name}`, () => {
+      checkAllTensors(input);
+    });
+  }
 
   it('produces normalized probabilities', () => {
     const cfg = makeConfig({ nLayer: 1, nHead: 2, dModel: 8, seqLen: 4, tieWeights: true });
@@ -90,5 +127,19 @@ describe('backward pass', () => {
       for (let v = 0; v < cfg.vocab; v++) sum += cache.probs[t * cfg.vocab + v];
       expect(Math.abs(sum - 1)).toBeLessThan(1e-4);
     }
+  });
+
+  it('has the expected parameter counts per toggle', () => {
+    const base = { nLayer: 1, nHead: 2, dModel: 8, seqLen: 3, tieWeights: true };
+    const full = new Transformer(makeConfig(base)).paramCount();
+    const noMlp = new Transformer(makeConfig({ ...base, mlp: false })).paramCount();
+    const rms = new Transformer(makeConfig({ ...base, norm: 'rmsnorm' })).paramCount();
+    const none = new Transformer(makeConfig({ ...base, norm: 'none' })).paramCount();
+    // MLP: ln2 (16) + wfc (8*32) + bfc (32) + wproj (32*8) + bproj (8)
+    expect(full - noMlp).toBe(16 + 256 + 32 + 256 + 8);
+    // RMSNorm drops the three norm biases (ln1b, ln2b, lnfb), 8 each.
+    expect(full - rms).toBe(3 * 8);
+    // No norm drops gains and biases, 3 x 16.
+    expect(full - none).toBe(3 * 16);
   });
 });

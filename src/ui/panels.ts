@@ -33,6 +33,9 @@ export function setupPanels(actions: PanelActions): void {
   arch.slider('width', s.dModel, { min: 8, max: 64, step: 8 });
   arch.slider('sort length', s.seqLen, { min: 3, max: 8, step: 1 });
   arch.toggle('tie embed weights', s.tieWeights);
+  arch.select('activation', s.activation as unknown as Signal<string | number>, ['gelu', 'relu']);
+  arch.select('norm', s.norm as unknown as Signal<string | number>, ['layernorm', 'rmsnorm', 'none']);
+  arch.toggle('mlp', s.mlp);
   arch.readout('parameters', computed(() => {
     s.modelVersion();
     return String(actions.paramCount());
