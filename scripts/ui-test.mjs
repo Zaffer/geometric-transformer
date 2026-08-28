@@ -239,6 +239,31 @@ if (sel && sel.tensor) {
 }
 await health('click synapse + edit (right panel)', { ok: editOk, note: sel ? `selected ${sel.label}` : 'nothing selected' });
 
+// tutorial popover: opens, loads the guide page, follows the theme, closes.
+{
+  await clickButton('open tutorial');
+  await wait(2000);
+  const state = await page.evaluate(() => {
+    const pop = document.getElementById('tutorialPop');
+    const doc = document.getElementById('tutorialFrame').contentDocument;
+    return {
+      open: pop.matches(':popover-open'),
+      loaded: !!doc && doc.readyState === 'complete' && !!doc.querySelector('h1'),
+      theme: doc?.documentElement?.dataset.theme ?? null,
+      appTheme: document.documentElement.dataset.theme,
+    };
+  });
+  await health('tutorial popover opens', {
+    ok: state.open && state.loaded && state.theme === state.appTheme,
+    skipDrag: true,
+    note: `open=${state.open} loaded=${state.loaded} theme=${state.theme}`,
+  });
+  await page.evaluate(() => document.getElementById('tutorialPop').hidePopover());
+  await wait(400);
+  const closed = await page.evaluate(() => !document.getElementById('tutorialPop').matches(':popover-open'));
+  await health('tutorial popover closes', { ok: closed });
+}
+
 if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
 await browser.close();
 console.log(`\n${backend}: ${results.length - failures}/${results.length} checks passed`);

@@ -127,7 +127,8 @@ export function buildSequenceView(cfg: ModelConfig): SequenceView {
     const black = new THREE.Color(0x000000);
     arcs.forEach((a, idx) => {
       const y = gridBase(a.block + 1) - gap * 0.55;
-      p.set((xPos(a.i) + xPos(a.j)) / 2, y, -0.2 - a.head * 0.3);
+      // heads are offset a little in y and z, so their arcs do not merge into one color
+      p.set((xPos(a.i) + xPos(a.j)) / 2, y + a.head * 0.22, -0.2 - a.head * 0.3);
       sc.set((xPos(a.i) - xPos(a.j)) / 2, 0.35 + (a.i - a.j) * 0.1, 1);
       m.compose(p, q, sc);
       arcLines.setMatrixAt(idx, m);

@@ -252,3 +252,32 @@ output {
 small {
   color: var(--muted);
 }
+
+/* Tutorial popover: the scene guide page, nearly full screen. */
+#tutorialPop {
+  width: min(1160px, calc(100vw - 32px));
+  height: calc(100vh - 32px);
+  height: calc(100dvh - 32px);
+  padding: 0;
+  overflow: hidden;
+}
+#tutorialPop:popover-open {
+  display: flex;
+  flex-direction: column;
+}
+#tutorialPop > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+#tutorialPop iframe {
+  flex: 1 1 0;
+  width: 100%;
+  border: 0;
+  background: var(--bg);
+}
+#tutorialPop::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}

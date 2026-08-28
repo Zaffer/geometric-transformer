@@ -23,7 +23,17 @@
       <label>renderer <output data-text="views.backend"></output></label>
       <span class="spacer"></span>
       <button data-on="click:actions.resetCamera" title="fit the camera to the scene">reset camera</button>
+      <button popovertarget="tutorialPop" title="open the scene guide">open tutorial</button>
     </header>
+
+    <!-- TUTORIAL: the scene guide, one static page in an iframe (loads on first open) -->
+    <div popover id="tutorialPop">
+      <header>
+        <strong>scene guide</strong>
+        <button popovertarget="tutorialPop" popovertargetaction="hide" title="close the guide">close</button>
+      </header>
+      <iframe id="tutorialFrame" data-src="/tutorial.html" title="scene guide"></iframe>
+    </div>
 
     <!-- LEFT: model, training, sample, view controls (panel builder) -->
     <section id="left"></section>

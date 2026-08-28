@@ -54,11 +54,18 @@ export interface EdgeOptions {
   colorScale: number;
 }
 
+export interface Anchor {
+  id: string;
+  label: string;
+  pos: THREE.Vector3;
+}
+
 export interface CircuitView {
   group: THREE.Group;
   labels: THREE.Group;
   pickables: THREE.Object3D[];
   width: number;
+  anchors: Anchor[];
   resolvePick(hit: THREE.Intersection): Selection | null;
   updateEdges(model: Transformer, o: EdgeOptions): void;
   updateActivations(cache: ForwardCache, t: number, colorScale: number): void;
@@ -178,6 +185,22 @@ export function buildCircuitView(model: Transformer): CircuitView {
 
   const width = (slot - 1) * XSTEP;
 
+  // One pivot anchor per column, for the "focus" panel. The label gets a
+  // block prefix; the two residual adds get names a dropdown can show.
+  const anchorLabel = (st: Stage): string => {
+    const m = /^b(\d+)\./.exec(st.id);
+    if (!m) return st.label;
+    let name = st.label;
+    if (st.id.endsWith('.resid1')) name = 'resid 1';
+    else if (st.id.endsWith('.resid2')) name = 'resid 2';
+    return `block ${m[1]}: ${name}`;
+  };
+  const anchors: Anchor[] = stages.map((st) => ({
+    id: st.id,
+    label: anchorLabel(st),
+    pos: new THREE.Vector3(st.x, st.yCenter, 0),
+  }));
+
   const unitPos = (s: Stage, i: number): THREE.Vector3 =>
     new THREE.Vector3(s.x, s.yCenter + ((s.size - 1) / 2 - i) * s.spacing, 0);
 
@@ -202,7 +225,7 @@ export function buildCircuitView(model: Transformer): CircuitView {
   neurons.userData.kind = 'neurons';
   group.add(neurons);
 
-  // ---- bias nodes ----
+  // ---- bias nodes: beside and below the column they feed, so their synapses fan out ----
   interface BiasNode { tensor: string; pos: THREE.Vector3 }
   const biasNodes: BiasNode[] = [];
   const biasNode = (tensor: string, x: number, y: number): THREE.Vector3 => {
@@ -247,20 +270,20 @@ export function buildCircuitView(model: Transformer): CircuitView {
       ...denseEdges(s.attnIn, s.v, (i, j) => i * 3 * D + 2 * D + j),
     ]);
     addEdges(`b${b}.wo`, 'weight', denseEdges(s.atty, s.attnOut, (i, j) => i * D + j));
-    const nqkv = biasNode(`b${b}.bqkv`, s.q.x, -13);
+    const nqkv = biasNode(`b${b}.bqkv`, s.q.x + 1.2, -13);
     addEdges(`b${b}.bqkv`, 'bias', [
       ...biasEdges(nqkv, s.q, 0),
       ...biasEdges(nqkv, s.k, D),
       ...biasEdges(nqkv, s.v, 2 * D),
     ]);
-    addEdges(`b${b}.bo`, 'bias', biasEdges(biasNode(`b${b}.bo`, s.attnOut.x, -7), s.attnOut, 0));
+    addEdges(`b${b}.bo`, 'bias', biasEdges(biasNode(`b${b}.bo`, s.attnOut.x + 1.2, -7), s.attnOut, 0));
 
     if (cfg.mlp && s.mlpH && s.mlpOut) {
       const mlpIn = s.ln2 ?? s.resid1;
       addEdges(`b${b}.wfc`, 'weight', denseEdges(mlpIn, s.mlpH, (i, j) => i * F + j));
       addEdges(`b${b}.wproj`, 'weight', denseEdges(s.mlpH, s.mlpOut, (i, j) => i * D + j));
-      addEdges(`b${b}.bfc`, 'bias', biasEdges(biasNode(`b${b}.bfc`, s.mlpH.x, -8.5), s.mlpH, 0));
-      addEdges(`b${b}.bproj`, 'bias', biasEdges(biasNode(`b${b}.bproj`, s.mlpOut.x, -7), s.mlpOut, 0));
+      addEdges(`b${b}.bfc`, 'bias', biasEdges(biasNode(`b${b}.bfc`, s.mlpH.x + 1.2, -8.5), s.mlpH, 0));
+      addEdges(`b${b}.bproj`, 'bias', biasEdges(biasNode(`b${b}.bproj`, s.mlpOut.x + 1.2, -7), s.mlpOut, 0));
     }
   }
 
@@ -370,8 +393,10 @@ export function buildCircuitView(model: Transformer): CircuitView {
   // ---- labels ----
   for (const s of stages) {
     const l = makeLabel(s.label, 0.7);
-    // q, k, v share one x slot; their labels go to the left, at mid height.
-    if (/\.(q|k|v)$/.test(s.id)) l.position.set(s.x - 1.2, s.yCenter, 0);
+    // q, k, v share one x slot: labels sit to the right, in the quiet gap before the heads.
+    if (/\.(q|k|v)$/.test(s.id)) l.position.set(s.x + 0.9, s.yCenter, 0);
+    // the position column sits under the token column: its label goes to the left.
+    else if (s.id === 'pos') l.position.set(s.x - 1.7, s.yCenter, 0);
     else l.position.set(s.x, s.yCenter + ((s.size - 1) / 2) * s.spacing + 1.1, 0);
     labels.add(l);
   }
@@ -461,6 +486,7 @@ export function buildCircuitView(model: Transformer): CircuitView {
     labels,
     pickables: [neurons, ...groups.map((g) => g.mesh)],
     width,
+    anchors,
     resolvePick,
     updateEdges,
     updateActivations,

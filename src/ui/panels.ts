@@ -7,6 +7,7 @@ import {
   effect,
   panel,
   signal,
+  untracked,
   type Signal,
   type Stop,
 } from '../../vendor/plainpanel/plainpanel.js';
@@ -19,6 +20,8 @@ export interface PanelActions {
   readParam(tensor: string, index: number): number;
   writeParam(tensor: string, index: number, value: number): void;
   paramCount(): number;
+  anchors(): { id: string; label: string }[];
+  focusAnchor(id: string): void;
 }
 
 export function setupPanels(actions: PanelActions): void {
@@ -50,6 +53,13 @@ export function setupPanels(actions: PanelActions): void {
   const sampleF = p.folder('sample');
   sampleF.button('new sequence', actions.newSample);
   sampleF.slider('circuit position', s.viewPos, { min: 0, max: 15, step: 1 });
+  // The slider range follows the context length (2 * sort length - 1 positions).
+  const posInput = [...left.querySelectorAll<HTMLInputElement>('input[type="range"]')].pop()!;
+  effect(() => {
+    const max = 2 * s.seqLen() - 2;
+    posInput.max = String(max);
+    if (untracked(() => s.viewPos()) > max) s.viewPos(max);
+  });
 
   const view = p.folder('view');
   view.toggle('weights', s.showWeights);
@@ -60,6 +70,35 @@ export function setupPanels(actions: PanelActions): void {
   view.slider('edge thickness', s.edgeScale, { min: 0.3, max: 3, step: 0.1, format: (v) => v.toFixed(1) });
   view.slider('weight color scale', s.weightColorScale, { min: 0.05, max: 1, step: 0.05, format: (v) => v.toFixed(2) });
   view.slider('activation color scale', s.actColorScale, { min: 0.2, max: 4, step: 0.1, format: (v) => v.toFixed(1) });
+
+  // Focus fieldset, first in the right panel: a dropdown of scene anchors.
+  // Picking one moves the orbit pivot there; "overview" refits the camera.
+  // The host div keeps it above the selection inspector across rebuilds.
+  const focusHost = document.createElement('div');
+  right.appendChild(focusHost);
+  effect(() => {
+    s.modelVersion();
+    const f = panel('focus', { parent: focusHost });
+    const options = [
+      { value: '', label: 'overview' },
+      ...untracked(() => actions.anchors()).map((a) => ({ value: a.id, label: a.label })),
+    ];
+    const pick = signal('');
+    f.select('pivot', pick as unknown as Signal<string | number>, options);
+    let first = true;
+    const stop = effect(() => {
+      const id = pick();
+      if (first) {
+        first = false;
+        return;
+      }
+      untracked(() => actions.focusAnchor(String(id)));
+    });
+    return () => {
+      stop();
+      f.dispose();
+    };
+  });
 
   // Selection inspector, in the right panel. Rebuilt when the selection changes.
   effect(() => {

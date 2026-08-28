@@ -1,0 +1,569 @@
+<title>Geometric Transformer Scene Guide</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #eef1f5;
+    --surface: #ffffff;
+    --text: #1f2732;
+    --muted: #5f6a7a;
+    --border: #cdd5e0;
+    --accent: #1f6fd6;
+    --code-bg: #e3e8ef;
+    --fig-bg: #14161a;
+    --fig-border: #29303d;
+    --note-bg: #e6eef9;
+    --caution-bg: #fbeaea;
+    --caution-text: #9b2c2c;
+    /* the scene encoding, fixed in both themes */
+    --w-pos: #2ecc71;
+    --w-neg: #e74c3c;
+    --a-pos: #ff9f43;
+    --a-neg: #54a0ff;
+    --zero: #20242a;
+    --tok-a: #1dd1a1;
+    --tok-b: #a55eea;
+    --tok-c: #feca57;
+    --head0: hsl(198 85% 60%);
+    --head1: hsl(261 85% 60%);
+    --bias: #8899aa;
+    --marker: #ffe066;
+    --ok: #2ecc71;
+    --bad: #e74c3c;
+    --display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+    --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161a;
+      --surface: #1a1e25;
+      --text: #dce3ee;
+      --muted: #8a93a5;
+      --border: #29303d;
+      --accent: #8fc7ff;
+      --code-bg: #0f1216;
+      --note-bg: #182232;
+      --caution-bg: #2a1a1c;
+      --caution-text: #ff9e9e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a;
+    --surface: #1a1e25;
+    --text: #dce3ee;
+    --muted: #8a93a5;
+    --border: #29303d;
+    --accent: #8fc7ff;
+    --code-bg: #0f1216;
+    --note-bg: #182232;
+    --caution-bg: #2a1a1c;
+    --caution-text: #ff9e9e;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.55;
+  }
+  .page {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 40px 24px 96px;
+  }
+  .prose { max-width: 68ch; }
+
+  header.masthead {
+    display: grid;
+    gap: 10px;
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+    border-bottom: 1px solid var(--border);
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(34px, 5vw, 52px);
+    line-height: 1.05;
+    margin: 0;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  .lede { color: var(--muted); font-size: 18px; margin: 0; max-width: 60ch; }
+
+  nav.contents ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 4px 24px;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  nav.contents a { color: var(--text); text-decoration: none; display: flex; gap: 10px; padding: 3px 0; }
+  nav.contents a:hover, nav.contents a:focus-visible { color: var(--accent); }
+  nav.contents .n { color: var(--accent); min-width: 2ch; }
+
+  section { margin-top: 56px; }
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 30px;
+    line-height: 1.1;
+    margin: 0 0 14px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    text-wrap: balance;
+  }
+  h2 .n {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 15px;
+    color: var(--accent);
+    min-width: 2.2ch;
+  }
+  h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 20px;
+    margin: 28px 0 8px;
+  }
+  p { margin: 0 0 12px; }
+  ul, ol.steps { margin: 0 0 14px; padding-left: 22px; }
+  li { margin: 4px 0; }
+  code, .lab {
+    font-family: var(--mono);
+    font-size: 0.92em;
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  figure.fig { margin: 22px 0 26px; }
+  .fig-frame {
+    background: var(--fig-bg);
+    border: 1px solid var(--fig-border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .fig-frame img { display: block; width: 100%; height: auto; }
+  figcaption {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--muted);
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+  }
+  .fig-n {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  dl.key {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 6px 16px;
+    margin: 12px 0 18px;
+    max-width: 68ch;
+  }
+  dl.key dt {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    align-self: start;
+    gap: 8px;
+    white-space: nowrap;
+    line-height: 1.55;
+  }
+  dl.key dd { margin: 0; }
+  .sw {
+    display: inline-block;
+    width: 0.9em;
+    height: 0.9em;
+    border-radius: 2px;
+    background: var(--c);
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    flex: none;
+  }
+  .sw.round { border-radius: 50%; }
+  .sw.diamond { transform: rotate(45deg) scale(0.8); }
+  .sw.line { height: 0.28em; border-radius: 2px; }
+  .sw.thin { height: 2px; border: 0; }
+
+  aside.note, aside.caution {
+    border-left: 3px solid var(--accent);
+    background: var(--note-bg);
+    padding: 10px 14px;
+    margin: 14px 0 18px;
+    max-width: 68ch;
+    border-radius: 0 4px 4px 0;
+  }
+  aside.caution { border-left-color: var(--bad); background: var(--caution-bg); color: var(--caution-text); }
+  aside b { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; margin-right: 8px; }
+  aside p { margin: 0; }
+
+  .tablewrap { overflow-x: auto; margin: 12px 0 20px; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--border); }
+  th { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  td:first-child { font-family: var(--mono); font-size: 14px; white-space: nowrap; }
+  td .sw { vertical-align: middle; margin-right: 6px; }
+
+  .tokens { font-family: var(--mono); letter-spacing: 0.35em; }
+  .tokens .b { color: var(--tok-b); }
+  .tokens .a { color: var(--tok-a); }
+  .tokens .c { color: var(--tok-c); }
+
+  ol.steps li { margin: 8px 0; }
+  ol.steps li::marker { font-family: var(--mono); color: var(--accent); }
+
+  footer.end {
+    margin-top: 64px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 68ch;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    nav.contents a { transition: color 0.12s; }
+  }
+</style>
+
+<div class="page">
+  <header class="masthead">
+    <div class="eyebrow">geometric transformer · scene guide · ASD-STE100</div>
+    <h1>Geometric Transformer Scene Guide</h1>
+    <p class="lede">What each object in the 3D scene shows, and how you control it. Read the sections in order. They follow the data through the model, from the input to the prediction.</p>
+    <nav class="contents" aria-label="contents">
+      <ol>
+        <li><a href="#s1"><span class="n">1</span>The screen</a></li>
+        <li><a href="#s2"><span class="n">2</span>The task</a></li>
+        <li><a href="#s3"><span class="n">3</span>The circuit panel: the rules</a></li>
+        <li><a href="#s4"><span class="n">4</span>The input part</a></li>
+        <li><a href="#s5"><span class="n">5</span>The attention part</a></li>
+        <li><a href="#s6"><span class="n">6</span>The MLP part</a></li>
+        <li><a href="#s7"><span class="n">7</span>The output part</a></li>
+        <li><a href="#s8"><span class="n">8</span>The bias nodes</a></li>
+        <li><a href="#s9"><span class="n">9</span>The sequence panel</a></li>
+        <li><a href="#s10"><span class="n">10</span>The controls</a></li>
+        <li><a href="#s11"><span class="n">11</span>How to edit one parameter</a></li>
+        <li><a href="#s12"><span class="n">12</span>Legend</a></li>
+      </ol>
+    </nav>
+  </header>
+
+  <!-- 1 -->
+  <section id="s1">
+    <h2><span class="n">1</span>The screen</h2>
+    <div class="prose">
+      <p>The screen has one 3D scene and four flat panels. The 3D scene fills the window. The panels float above it.</p>
+    </div>
+    <figure class="fig">
+      <div class="fig-frame"><img src="@@overview" alt="The full screen: top bar, left control panel, right selection panel, bottom charts, and the 3D scene with the sequence panel above the circuit panel."></div>
+      <figcaption><span class="fig-n">Figure 1</span>The full screen, after training. The model sorts the test sequences correctly.</figcaption>
+    </figure>
+    <dl class="key">
+      <dt>top bar</dt><dd>The step count, the loss, the accuracy, and the renderer. The <span class="lab">reset camera</span> button fits the scene to the window. The <span class="lab">open tutorial</span> button opens this guide. The menu button (☰) gives the dark or light theme.</dd>
+      <dt>left panel</dt><dd>The controls for the model, the training, the sample, and the view.</dd>
+      <dt>right panel</dt><dd>The element that you clicked in the scene. Here you edit its parameters.</dd>
+      <dt>bottom panel</dt><dd>Two charts: the training loss and the sort accuracy.</dd>
+      <dt>circuit panel</dt><dd>The lower part of the scene. It shows every neuron and every synapse for one position.</dd>
+      <dt>sequence panel</dt><dd>The upper part of the scene, further back. It shows all positions, the attention, and the predictions.</dd>
+    </dl>
+    <div class="prose">
+      <h3>The camera</h3>
+      <ul>
+        <li>Drag with the left mouse button to rotate the scene.</li>
+        <li>Drag with the right mouse button to move the scene.</li>
+        <li>Turn the mouse wheel to zoom.</li>
+        <li>Click <span class="lab">reset camera</span> to see the full scene again.</li>
+      </ul>
+      <aside class="note"><b>Note</b><p>The camera does not move by itself. A change of the model or of the weights keeps your view.</p></aside>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section id="s2">
+    <h2><span class="n">2</span>The task</h2>
+    <div class="prose">
+      <p>The model learns to sort letters. The letters are A, B, and C. One example has 6 random input letters, and then the same letters in sorted order. The model reads the sequence one letter at a time. At each position, it predicts the next letter.</p>
+      <p>The sequence in the scene has 11 positions: the 6 input letters and the first 5 sorted letters. At the last position, the model predicts the 6th sorted letter. Example:</p>
+      <p class="tokens"><span class="b">B</span><span class="a">A</span><span class="b">B</span><span class="b">B</span><span class="a">A</span><span class="a">A</span> <span class="a">A</span><span class="a">A</span><span class="a">A</span><span class="b">B</span><span class="b">B</span> → <span class="b">B</span></p>
+      <p>The first 6 letters are the input. The next 5 letters are the sorted letters, so far. The correct next letter is B. Positions 5 to 10 have a correct answer. Positions 0 to 4 have no correct answer, because the input letters are random.</p>
+      <p>The default model is small: 2 blocks, 2 attention heads, a width of 16, and 6816 parameters. The scene shows all of them.</p>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section id="s3">
+    <h2><span class="n">3</span>The circuit panel: the rules</h2>
+    <div class="prose">
+      <p>The circuit panel shows the complete computation for one position. Read it from left to right. Each column of spheres is one step of the computation. The label above a column names the step.</p>
+    </div>
+    <figure class="fig">
+      <div class="fig-frame"><img src="@@scene" alt="The complete circuit panel: token and position columns, embed, block 0, block 1, ln f and logits, with the sequence panel above."></div>
+      <figcaption><span class="fig-n">Figure 2</span>The complete scene without the panels. Block 0 and block 1 have the same structure.</figcaption>
+    </figure>
+    <dl class="key">
+      <dt><i class="sw round" style="--c: var(--a-pos)"></i> sphere</dt><dd>One neuron. A neuron holds one number. Orange is positive. Blue is negative. Dark is near zero. The number is the value at the selected position.</dd>
+      <dt><i class="sw line" style="--c: var(--w-pos)"></i> line</dt><dd>One synapse. A synapse is one weight of the model. Green is positive. Red is negative. A thick, bright line is a large weight. A thin, dark line is near zero.</dd>
+      <dt><i class="sw diamond" style="--c: var(--bias)"></i> diamond</dt><dd>One bias node. Each line from a diamond is one bias of the model.</dd>
+      <dt><i class="sw thin" style="--c: #6b7482"></i> thin gray line</dt><dd>A copy of a value to the next column. It has no parameter.</dd>
+      <dt><i class="sw" style="--c: var(--head0)"></i> cube</dt><dd>One attention head. See section 5.</dd>
+    </dl>
+    <div class="prose">
+      <aside class="note"><b>Note</b><p>The weights are the same for all 11 positions. Only the sphere colors change with the position. The <span class="lab">circuit position</span> slider selects the position. The default is position 10, the last one.</p></aside>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section id="s4">
+    <h2><span class="n">4</span>The input part</h2>
+    <figure class="fig">
+      <div class="fig-frame"><img src="@@input" alt="The token column with the letters A B C, the position column with 11 spheres, and the embed column with 16 spheres, joined by red and green synapses."></div>
+      <figcaption><span class="fig-n">Figure 3</span>The input part. The letter B is lit in the token column. Position 10 is lit at the bottom of the position column.</figcaption>
+    </figure>
+    <dl class="key">
+      <dt>token</dt><dd>3 spheres: A, B, and C. One sphere is lit. It is the letter at the selected position.</dd>
+      <dt>position</dt><dd>11 spheres. One sphere is lit. It is the position number, from 0 at the top to 10 at the bottom.</dd>
+      <dt>embed</dt><dd>16 spheres. This is the residual stream: the vector that flows through the whole model. Each value is the sum of one token embedding value and one position embedding value.</dd>
+    </dl>
+    <div class="prose">
+      <p>The lines from <span class="lab">token</span> to <span class="lab">embed</span> are the token embedding matrix: 3 × 16 = 48 weights. The lines from <span class="lab">position</span> to <span class="lab">embed</span> are the position embedding matrix: 11 × 16 = 176 weights. Only the lit sphere sends its values forward. The other lines show the weights, but they carry zero.</p>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section id="s5">
+    <h2><span class="n">5</span>The attention part</h2>
+    <figure class="fig">
+      <div class="fig-frame"><img src="@@attention" alt="The attention part of block 0: ln1, the tall q k v stack, two head cubes (cyan and violet), att mix, att out, and the residual sum column."></div>
+      <figcaption><span class="fig-n">Figure 4</span>The attention part of block 0. The tall stack holds q at the top, k in the middle, and v at the bottom.</figcaption>
+    </figure>
+    <dl class="key">
+      <dt>ln1</dt><dd>Layer normalization. 16 spheres. Each sphere has two parameters: a gain and a bias. Click a sphere to see them.</dd>
+      <dt>q, k, v</dt><dd>Three columns of 16 spheres in one tall stack: the queries, the keys, and the values. The lines from <span class="lab">ln1</span> are one matrix: 16 × 48 = 768 weights.</dd>
+      <dt><i class="sw" style="--c: var(--head0)"></i> <i class="sw" style="--c: var(--head1)"></i> cubes</dt><dd>One cube for each attention head. Head 0 is cyan. Head 1 is violet. Each head owns 8 of the 16 q, k, and v spheres. The q and k spheres of a head connect to its cube. The cube stands for the attention weights that q and k produce together.</dd>
+      <dt>att mix</dt><dd>16 spheres. The values (v) of this position and of all earlier positions, mixed with the attention weights. Thin gray lines join <span class="lab">v</span> and the cubes to this column.</dd>
+      <dt>att out</dt><dd>16 spheres, after the output matrix (16 × 16 = 256 weights) and its bias.</dd>
+      <dt>+</dt><dd>The residual sum: the input of the block plus <span class="lab">att out</span>. Thin gray lines bring both.</dd>
+    </dl>
+    <div class="prose">
+      <aside class="note"><b>Note</b><p>The circuit panel shows one position. The mixing across positions is not visible here. The sequence panel shows it as arcs (section 9).</p></aside>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section id="s6">
+    <h2><span class="n">6</span>The MLP part</h2>
+    <figure class="fig">
+      <div class="fig-frame"><img src="@@mlp" alt="The MLP part of block 0: ln2, the tall mlp gelu column with 64 spheres, mlp out, and the residual sum column, followed by ln1 of block 1."></div>
+      <figcaption><span class="fig-n">Figure 5</span>The MLP part of block 0. The dense column in the center is the 64 GELU neurons.</figcaption>
+    </figure>
+    <dl class="key">
+      <dt>ln2</dt><dd>The second layer normalization. 16 spheres with a gain and a bias each.</dd>
+      <dt>mlp gelu</dt><dd>64 spheres. Each sphere is one hidden neuron after the GELU activation function. The lines from <span class="lab">ln2</span> are 16 × 64 = 1024 weights. This column is the part of the model that bends the space. It is the subject of the later geometry views.</dd>
+      <dt>mlp out</dt><dd>16 spheres, after the projection matrix (64 × 16 = 1024 weights) and its bias.</dd>
+      <dt>+</dt><dd>The residual sum. This vector is the output of the block. It enters the next block, or the final normalization.</dd>
+    </dl>
+    <div class="prose">
+      <p>One block has 3280 parameters. Two blocks have 6560. With the embeddings and the final normalization, the model has 6816.</p>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section id="s7">
+    <h2><span class="n">7</span>The output part</h2>
+    <figure class="fig">
+      <div class="fig-frame"><img src="@@output" alt="The output part: the final residual sum, ln f, and the three logits A B C with the unembedding synapses."></div>
+      <figcaption><span class="fig-n">Figure 6</span>The output part. The middle logit, B, is the brightest. The model predicts B.</figcaption>
+    </figure>
+    <dl class="key">
+      <dt>ln f</dt><dd>The final layer normalization.</dd>
+      <dt>logits</dt><dd>3 spheres: A, B, and C. The score for each letter. The brightest orange sphere is the prediction. The softmax of these three values gives the probabilities in the sequence panel.</dd>
+    </dl>
+    <div class="prose">
+      <p>The lines from <span class="lab">ln f</span> to <span class="lab">logits</span> are the unembedding matrix: 16 × 3 = 48 weights. When the <span class="lab">tie embed weights</span> switch is on, these are the same numbers as the token embedding weights of section 4. The scene draws them in both places. If you edit one, the other changes too.</p>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section id="s8">
+    <h2><span class="n">8</span>The bias nodes</h2>
+    <figure class="fig">
+      <div class="fig-frame"><img src="@@bias" alt="A gray diamond below and beside a column, with a fan of red and green lines to each sphere of the column."></div>
+      <figcaption><span class="fig-n">Figure 7</span>Two bias nodes. The left diamond feeds q, k, and v of block 0. The right diamond feeds att out.</figcaption>
+    </figure>
+    <div class="prose">
+      <p>A gray diamond stands beside and below the column that it feeds. Each line from the diamond to a sphere is one bias value. The colors and the thickness follow the same rule as the weights.</p>
+      <p>Each block has four diamonds: for q, k, and v (48 biases), for <span class="lab">att out</span> (16), for <span class="lab">mlp gelu</span> (64), and for <span class="lab">mlp out</span> (16). The layer normalizations keep their biases inside the spheres. Click a sphere of <span class="lab">ln1</span>, <span class="lab">ln2</span>, or <span class="lab">ln f</span> to see them.</p>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section id="s9">
+    <h2><span class="n">9</span>The sequence panel</h2>
+    <div class="prose">
+      <p>The sequence panel shows all 11 positions at the same time. Position 0 is at the left. Read the panel from the bottom to the top.</p>
+    </div>
+    <figure class="fig">
+      <div class="fig-frame"><img src="@@sequence" alt="The sequence panel: token cubes with letters, the embed grid, the att 0 arcs, the block 0 grid, the att 1 arcs, the block 1 grid, the predict row, and three probability bars."></div>
+      <figcaption><span class="fig-n">Figure 8</span>The sequence panel. Each column is one position. Each row is one stage of the model.</figcaption>
+    </figure>
+    <dl class="key">
+      <dt><i class="sw" style="--c: var(--tok-a)"></i> <i class="sw" style="--c: var(--tok-b)"></i> <i class="sw" style="--c: var(--tok-c)"></i> tokens</dt><dd>One cube for each letter of the sequence. Teal is A. Violet is B. Yellow is C. The letters are below the cubes.</dd>
+      <dt>embed</dt><dd>One column of 16 cells for each position. This is the residual stream after the embedding. The cell colors follow the sphere rule: orange positive, blue negative.</dd>
+      <dt>att 0</dt><dd>The attention arcs of block 0. See Figure 9.</dd>
+      <dt>block 0</dt><dd>The residual stream after block 0, for each position.</dd>
+      <dt>att 1, block 1</dt><dd>The same for block 1.</dd>
+      <dt>predict</dt><dd>The letter with the highest probability at each position. A <span style="color: var(--muted)">gray</span> letter has no correct answer. A <span style="color: var(--ok)">green</span> letter is correct. A <span style="color: var(--bad)">red</span> letter is wrong.</dd>
+      <dt>bars</dt><dd>At the right of the predict row: the three probabilities A, B, and C at the last position. The tallest bar is the final prediction.</dd>
+    </dl>
+    <figure class="fig">
+      <div class="fig-frame"><img src="@@arcs" alt="A close view of the att 0 arcs: cyan and violet arcs of different brightness that join the token positions."></div>
+      <figcaption><span class="fig-n">Figure 9</span>The attention arcs of block 0, close. Cyan is head 0. Violet is head 1.</figcaption>
+    </figure>
+    <div class="prose">
+      <p>One arc joins an earlier position to a later position. It means: the later position reads from the earlier one. A bright arc is a strong attention weight. A dark arc is a weak one. Cyan arcs belong to head 0. Violet arcs belong to head 1. The arcs reach only to the left, because a position cannot see the future.</p>
+      <aside class="note"><b>Note</b><p>The arcs show the attention for the current example sequence. Click <span class="lab">new sequence</span> to see a different example.</p></aside>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section id="s10">
+    <h2><span class="n">10</span>The controls</h2>
+    <figure class="fig">
+      <div class="fig-frame"><img src="@@topbar" alt="The top bar: the menu button, the title, the step count, the loss, the accuracy, the renderer, the reset camera button, and the open tutorial button."></div>
+      <figcaption><span class="fig-n">Figure 10</span>The top bar. The values update while the model trains.</figcaption>
+    </figure>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Item</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>step</td><td>The number of optimizer steps so far.</td></tr>
+          <tr><td>loss</td><td>The cross-entropy loss of the last training batch. A small value is good.</td></tr>
+          <tr><td>accuracy</td><td>The share of 40 test sequences that the model sorts fully correctly. Measured every 25 steps.</td></tr>
+          <tr><td>renderer</td><td>WebGPU, or WebGL2 when the browser has no WebGPU.</td></tr>
+          <tr><td>☰</td><td>The menu: dark or light theme, and the "no CSS" test mode.</td></tr>
+          <tr><td>reset camera</td><td>Fits the camera to the full scene.</td></tr>
+          <tr><td>open tutorial</td><td>Opens this guide.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The left panel</h3>
+    <figure class="fig" style="max-width: 320px">
+      <div class="fig-frame"><img src="@@leftpanel" alt="The left control panel with the model, training, sample, and view folders."></div>
+      <figcaption><span class="fig-n">Figure 11</span>The left panel.</figcaption>
+    </figure>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Control</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td>layers</td><td>The number of blocks, 1 to 4.</td></tr>
+          <tr><td>heads</td><td>The number of attention heads in each block: 1, 2, or 4.</td></tr>
+          <tr><td>width</td><td>The size of the residual stream, 8 to 64. The MLP has 4 times this number of neurons.</td></tr>
+          <tr><td>sort length</td><td>The number of letters to sort, 3 to 8. The sequence has 2 × length − 1 positions.</td></tr>
+          <tr><td>tie embed weights</td><td>On: one matrix for the token embedding and the unembedding (GPT-2). Off: two matrices.</td></tr>
+          <tr><td>activation</td><td><span class="lab">gelu</span> (GPT-2) or <span class="lab">relu</span>.</td></tr>
+          <tr><td>norm</td><td><span class="lab">layernorm</span> (GPT-2), <span class="lab">rmsnorm</span> (gain only), or <span class="lab">none</span>.</td></tr>
+          <tr><td>mlp</td><td>On: GPT-2 blocks. Off: attention-only blocks. The MLP columns disappear.</td></tr>
+          <tr><td>parameters</td><td>The total number of parameters in the model.</td></tr>
+          <tr><td>reset weights</td><td>New random weights, same structure.</td></tr>
+          <tr><td>train / pause</td><td>Starts and stops the training.</td></tr>
+          <tr><td>learn rate</td><td>The step size of the AdamW optimizer.</td></tr>
+          <tr><td>batch size</td><td>The number of example sequences in one optimizer step.</td></tr>
+          <tr><td>steps each frame</td><td>The number of optimizer steps between two screen updates. A large value trains faster.</td></tr>
+          <tr><td>new sequence</td><td>A new random example for the scene. The weights do not change.</td></tr>
+          <tr><td>circuit position</td><td>The position that the circuit panel shows, 0 to 10.</td></tr>
+          <tr><td>weights, biases</td><td>Show or hide the weight lines and the bias lines.</td></tr>
+          <tr><td>sequence panel, labels</td><td>Show or hide the sequence panel and the text labels.</td></tr>
+          <tr><td>weight threshold</td><td>Hides lines with a weight smaller than this value. Use it to see only the strong synapses.</td></tr>
+          <tr><td>edge thickness</td><td>Makes all lines thicker or thinner.</td></tr>
+          <tr><td>weight color scale</td><td>A small value gives strong colors to small weights.</td></tr>
+          <tr><td>activation color scale</td><td>A small value gives strong colors to small neuron values.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="prose">
+      <aside class="caution"><b>Caution</b><p>A change in the model folder builds a new model with random weights. The training progress is lost.</p></aside>
+    </div>
+
+    <h3>The charts</h3>
+    <figure class="fig">
+      <div class="fig-frame"><img src="@@charts" alt="Two charts: the training loss falls to zero; the sort accuracy rises to 100 percent."></div>
+      <figcaption><span class="fig-n">Figure 12</span>The bottom panel. The loss goes down. The accuracy goes up.</figcaption>
+    </figure>
+    <div class="prose">
+      <p>The left chart shows the training loss. The right chart shows the sort accuracy. Each chart shows the last value and the number of points. Drag the bar above the charts to change their height.</p>
+    </div>
+  </section>
+
+  <!-- 11 -->
+  <section id="s11">
+    <h2><span class="n">11</span>How to edit one parameter</h2>
+    <figure class="fig">
+      <div class="fig-frame"><img src="@@selection" alt="A selected synapse between the token column and the embed column, marked with a yellow wire sphere. The right panel shows wte[2, 2] and its slider."></div>
+      <figcaption><span class="fig-n">Figure 13</span>A selected synapse. The yellow marker shows it in the scene. The right panel shows its name and its slider.</figcaption>
+    </figure>
+    <div class="prose">
+      <ol class="steps">
+        <li>Click <span class="lab">pause</span> if the training runs. If not, the optimizer overwrites your edit at the next step.</li>
+        <li>Click a line or a sphere in the circuit panel. A yellow marker shows the selected element.</li>
+        <li>Read the name in the right panel. Example: <span class="lab">wte[2, 2]</span> is row 2, column 2 of the token embedding matrix. Row 2 is the letter C. Column 2 is the third value of the embedding.</li>
+        <li>Move the slider. The scene updates at once: the line changes its color and its thickness, and all sphere colors after it change.</li>
+        <li>Click <span class="lab">new sequence</span> to see the effect on a different example.</li>
+      </ol>
+      <p>Spheres with parameters: the <span class="lab">ln</span> spheres (a gain and a bias), and the spheres of <span class="lab">q</span>, <span class="lab">k</span>, <span class="lab">v</span>, <span class="lab">att out</span>, <span class="lab">mlp gelu</span>, and <span class="lab">mlp out</span> (one bias each). The spheres of <span class="lab">token</span>, <span class="lab">position</span>, <span class="lab">embed</span>, <span class="lab">att mix</span>, <span class="lab">+</span>, and <span class="lab">logits</span> have no parameters. They show values only.</p>
+      <aside class="note"><b>Tip</b><p>Thin lines are hard to click. Increase <span class="lab">edge thickness</span> in the view folder, or zoom in with the mouse wheel.</p></aside>
+    </div>
+  </section>
+
+  <!-- 12 -->
+  <section id="s12">
+    <h2><span class="n">12</span>Legend</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Object</th><th>Meaning</th><th>Color rule</th></tr></thead>
+        <tbody>
+          <tr><td><i class="sw round" style="--c: var(--a-pos)"></i>sphere</td><td>One neuron: one value at the selected position</td><td><i class="sw" style="--c: var(--a-pos)"></i>positive &nbsp; <i class="sw" style="--c: var(--a-neg)"></i>negative &nbsp; <i class="sw" style="--c: var(--zero)"></i>near zero</td></tr>
+          <tr><td><i class="sw line" style="--c: var(--w-pos)"></i>line</td><td>One synapse: one weight</td><td><i class="sw" style="--c: var(--w-pos)"></i>positive &nbsp; <i class="sw" style="--c: var(--w-neg)"></i>negative &nbsp; thick = large</td></tr>
+          <tr><td><i class="sw diamond" style="--c: var(--bias)"></i>diamond</td><td>One bias node; each line from it is one bias</td><td>Same rule as the weights</td></tr>
+          <tr><td><i class="sw thin" style="--c: #6b7482"></i>thin gray line</td><td>A copy of a value; no parameter</td><td>Always gray</td></tr>
+          <tr><td><i class="sw" style="--c: var(--head0)"></i>cube</td><td>One attention head</td><td><i class="sw" style="--c: var(--head0)"></i>head 0 &nbsp; <i class="sw" style="--c: var(--head1)"></i>head 1</td></tr>
+          <tr><td><i class="sw" style="--c: var(--head0)"></i>arc</td><td>Attention from a later position to an earlier one</td><td>Color = head; bright = strong</td></tr>
+          <tr><td><i class="sw" style="--c: var(--a-pos)"></i>cell</td><td>One value of the residual stream at one position</td><td>Same rule as the spheres</td></tr>
+          <tr><td><i class="sw" style="--c: var(--tok-b)"></i>token cube</td><td>One letter of the sequence</td><td><i class="sw" style="--c: var(--tok-a)"></i>A &nbsp; <i class="sw" style="--c: var(--tok-b)"></i>B &nbsp; <i class="sw" style="--c: var(--tok-c)"></i>C</td></tr>
+          <tr><td>predict letter</td><td>The most probable next letter</td><td><span style="color: var(--muted)">gray</span> no answer &nbsp; <span style="color: var(--ok)">green</span> correct &nbsp; <span style="color: var(--bad)">red</span> wrong</td></tr>
+          <tr><td><i class="sw round" style="--c: var(--marker)"></i>yellow wire sphere</td><td>The selected element</td><td>Always yellow</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="end">
+    <p>The images come from the default model after training. Your scene shows other values, but the same objects. This guide uses ASD-STE100 Simplified Technical English.</p>
+  </footer>
+</div>

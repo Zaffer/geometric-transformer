@@ -85,9 +85,9 @@ the model sit behind narrow calls and receive data through effects.
 
 - **Top bar**: the hamburger menu (dark/light theme, "no CSS" which disables
   every stylesheet and leaves the raw HTML), the live step / loss /
-  accuracy / renderer readouts, and **reset camera**. The camera never
-  moves on its own: model changes, weight resets, and toggles keep it
-  where you left it. Only "reset camera" refits it.
+  accuracy / renderer readouts, **reset camera**, and **open tutorial**.
+  The camera never moves on its own: model changes, weight resets, and
+  toggles keep it where you left it. Only "reset camera" refits it.
 - **Left panel**: model (size, tie, activation, norm, mlp, reset weights),
   training (train/pause, learn rate, batch, steps per frame), sample, view.
 - **Right panel**: the selection inspector. Click any synapse or neuron
@@ -97,6 +97,19 @@ the model sit behind narrow calls and receive data through effects.
 URL parameters: `?train=1` starts training on load, `?steps=N` sets
 optimizer steps per frame, `?cam=x,y,dist` sets the start camera.
 
+## The tutorial
+
+"open tutorial" in the top bar opens the scene guide (`public/tutorial.html`,
+written in ASD-STE100 Simplified Technical English) in a popover iframe. The
+page is self-contained: the screenshots are inlined as data URIs, and its
+theme follows the app theme. To regenerate it after a visual change:
+
+```
+npm run dev &
+node scripts/guide-shots.mjs /tmp/shots    # trains, then captures each part
+node scripts/build-guide.mjs /tmp/shots    # scripts/guide-src.html -> public/tutorial.html
+```
+
 ## Layout
 
 ```
@@ -105,7 +118,8 @@ src/viz/       scene (renderer/picking), circuit view, sequence view, palette, l
 src/ui/        panels.ts (left + right builder panels), chrome.ts (top bar, handles, theme, charts)
 src/state.ts   the signal store
 tests/         numeric gradient check, training smoke test
-scripts/       puppeteer browser suite (ui-test.mjs)
+scripts/       puppeteer browser suite (ui-test.mjs), tutorial screenshots + build (guide-shots.mjs, guide-src.html, build-guide.mjs)
+public/        tutorial.html (the built scene guide)
 vendor/        plainpanel (single-file ESM + css + types)
 ```
 

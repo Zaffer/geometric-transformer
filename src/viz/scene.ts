@@ -100,6 +100,15 @@ export class Stage3D {
     this.controls.update();
   }
 
+  // Move the orbit pivot to p. The camera moves by the same vector, so the
+  // view direction and the zoom distance do not change.
+  setPivot(p: THREE.Vector3): void {
+    const delta = new THREE.Vector3().subVectors(p, this.controls.target);
+    this.camera.position.add(delta);
+    this.controls.target.copy(p);
+    this.controls.update();
+  }
+
   showMarker(pos: THREE.Vector3 | null): void {
     if (pos) {
       this.marker.position.copy(pos);

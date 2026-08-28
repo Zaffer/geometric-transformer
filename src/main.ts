@@ -236,6 +236,12 @@ async function boot(): Promise<void> {
       s.bumpParams();
     },
     paramCount: () => model.paramCount(),
+    anchors: () => (circuit ? circuit.anchors.map(({ id, label }) => ({ id, label })) : []),
+    focusAnchor: (id) => {
+      const a = circuit?.anchors.find((x) => x.id === id);
+      if (a) stage.setPivot(a.pos);
+      else fitCamera();
+    },
   });
   setupChrome({ resetCamera: fitCamera });
 
@@ -290,6 +296,7 @@ async function boot(): Promise<void> {
     frames: () => stage.frameCount,
     frameErrors: () => stage.errorCount,
     camera: () => [stage.camera.position.x, stage.camera.position.y, stage.camera.position.z],
+    target: () => [stage.controls.target.x, stage.controls.target.y, stage.controls.target.z],
     state: { stepCount: s.stepCount, lossVal: s.lossVal, accuracy: s.accuracy, theme: s.theme, noCss: s.noCss },
   };
 }

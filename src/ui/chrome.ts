@@ -64,6 +64,19 @@ export function setupChrome(actions: ChromeActions): void {
     }
   });
 
+  // Tutorial popover: the guide page loads on the first open, and its theme
+  // follows the app theme (the page reads data-theme on its root element).
+  const tutFrame = document.querySelector<HTMLIFrameElement>('#tutorialFrame')!;
+  const stampTutorialTheme = () => {
+    const doc = tutFrame.contentDocument;
+    if (doc?.documentElement) doc.documentElement.dataset.theme = s.theme();
+  };
+  document.getElementById('tutorialPop')!.addEventListener('toggle', (e) => {
+    if ((e as ToggleEvent).newState === 'open' && !tutFrame.src) tutFrame.src = tutFrame.dataset.src!;
+  });
+  tutFrame.addEventListener('load', stampTutorialTheme);
+  effect(stampTutorialTheme);
+
   sparkline(document.querySelector<HTMLCanvasElement>('#lossChart canvas')!, s.lossSeries, {});
   sparkline(document.querySelector<HTMLCanvasElement>('#accChart canvas')!, s.accSeries, { min: 0, max: 1, percent: true });
 }
