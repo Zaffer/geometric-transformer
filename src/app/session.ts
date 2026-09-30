@@ -130,6 +130,14 @@ export class Session {
     this.pushParams();
   }
 
+  /** Move the whole model to a parameter vector (a landscape point). */
+  setAll(flat: ArrayLike<number>): void {
+    if (flat.length !== this.model.numParams()) return;
+    this.claimScrub();
+    this.model.setFlat(flat);
+    this.pushParams();
+  }
+
   reinitTensor(name: string): void {
     const p = this.model.byName.get(name);
     if (!p) return;

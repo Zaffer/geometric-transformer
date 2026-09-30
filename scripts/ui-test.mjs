@@ -234,6 +234,65 @@ await wait(1200);
 check('URL restores the spec', (await gt('__gt.session.model.spec.dMlp')) === 7);
 drainLogs('url');
 
+// ---- loss landscape ----
+await page.evaluate(() => [...document.querySelectorAll('#left button')].find((b) => b.textContent.startsWith('sort (default)')).click());
+await wait(400);
+await gt('__gt.session.steps(400)');
+await wait(1500);
+await gt(`__gt.ui.tab('landscape')`);
+const landDone = async (ms = 20000) => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    const s = await gt('(() => { const v = __gt.views.find((x) => x.id === "landscape"); return v.slice ? [v.slice.done, v.slice.total] : null })()');
+    if (s && s[0] === s[1]) return true;
+    await wait(250);
+  }
+  return false;
+};
+check('landscape 2D completes', await landDone());
+drainLogs('landscape 2D');
+const L = '__gt.views.find((x) => x.id === "landscape")';
+for (const kind of ['weight', 'tensor', 'gradient', 'hessian', 'pca', 'init', 'random']) {
+  await gt(`(() => { const v = ${L}; v.cfg.dims = 2; v.cfg.axes[0].kind = '${kind}'; v.cfg.res[2] = 17; v.refreshControls(); v.compute(); })()`);
+  check(`landscape direction ${kind}`, await landDone(30000));
+  drainLogs(`landscape dir ${kind}`);
+}
+for (const carve of ['examples', 'mlp', 'layer', 'neuron', 'attn', 'pred', 'all', 'none'])
+  for (const paint of ['cells', 'loss', 'acc', 'flips']) {
+    await gt(`(() => { const v = ${L}; v.cfg.carve = '${carve}'; v.cfg.paint = '${paint}'; v.draw(true); })()`);
+  }
+drainLogs('landscape carve/paint');
+for (const dims of [1, 3, "'path'"]) {
+  await gt(`(() => { const v = ${L}; v.cfg.dims = ${dims}; v.cfg.axes[0].kind = 'random'; v.cfg.res[3] = 9; v.syncAxes(); v.compute(); })()`);
+  if (dims !== "'path'") check(`landscape dims ${dims}`, await landDone(30000));
+  else await wait(3000);
+  drainLogs(`landscape dims ${dims}`);
+}
+// click on the 1D/2D map moves the model
+await gt(`(() => { const v = ${L}; v.cfg.dims = 2; v.cfg.res[2] = 17; v.syncAxes(); v.compute(); })()`);
+await landDone();
+const before2 = await gt('__gt.session.model.flat()[0]');
+const mc = await page.$('.view:not([hidden]) canvas[style*="crosshair"]');
+const mb = await mc.boundingBox();
+await page.mouse.click(mb.x + 70, mb.y + 40);
+await wait(600);
+check('landscape click moves the model', (await gt('__gt.session.model.flat()[0]')) !== before2);
+await page.evaluate(() => [...document.querySelectorAll('.view:not([hidden]) button')].find((b) => b.textContent === 'back to θ₀').click());
+await wait(400);
+await page.evaluate(() => [...document.querySelectorAll('.view:not([hidden]) button')].find((b) => b.textContent.startsWith('Hessian spectrum')).click());
+await wait(6000);
+check('Hessian spectrum', /largest/.test(await gt(`${L}.eigenOut.textContent`)));
+drainLogs('landscape interactions');
+// the inspector's →x button
+await gt(`__gt.ui.tab('residual')`);
+await page.evaluate(() => document.querySelector('#map [data-node="L0.mlp"]').dispatchEvent(new MouseEvent('click', { bubbles: true })));
+await wait(300);
+await page.evaluate(() => [...document.querySelectorAll('#right button')].find((b) => b.textContent === '→x').click());
+await wait(500);
+check('→x opens the landscape with a weight axis', (await gt('__gt.ui.tab()')) === 'landscape' && (await gt(`${L}.cfg.axes[0].kind`)) === 'weight');
+await landDone();
+drainLogs('inspector → landscape');
+
 // ---- keyboard, theme ----
 await page.keyboard.press('Space');
 await wait(800);

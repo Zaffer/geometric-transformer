@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test:ui": "node scripts/ui-test.mjs",
     "sweep": "tsx scripts/sweep-run.ts",
-    "shot": "node scripts/shot.mjs"
+    "shot": "node scripts/shot.mjs",
+    "walls": "tsx scripts/walls.ts"
   },
   "dependencies": {
     "three": "^0.185.1"

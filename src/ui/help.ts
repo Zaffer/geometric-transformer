@@ -36,6 +36,20 @@ so it lies in the convex hull of the values it can see).</li>
 <li><b>MLP cells</b>: each neuron is a plane W1[:,j]·z + b1[j] = 0 in the MLP's input space. The on/off pattern of all neurons cuts space into
 convex cells; with ReLU the MLP is exactly one affine map per cell. After a norm, only how the planes cut the sphere / circle matters: the side panel unrolls it flat.</li>
 <li><b>playground</b>: build a sequence, read the next-token distributions, generate, and watch the logit lens. This sequence is the probe the other views show.</li>
+<li><b>loss landscape</b>: a 1D, 2D or 3D slice through parameter space, θ = θ₀ + a·u + b·v (+ c·w). Every point is a whole network: its loss on the whole
+dataset, and its activation pattern (which ReLUs fire, for every input). Points with the same pattern form a <em>cell</em>: inside it every ReLU is a fixed 0/1 mask,
+so the loss is a smooth function of the weights there and can only kink on the <em>walls</em>. Those cells are the volumes the activation functions carve into the loss landscape.</li>
+</ul>
+
+<h3>reading the landscape</h3>
+<ul>
+<li><b>every example lays its own walls</b>: an example's walls are where one of its (neuron, position) pre-activations crosses 0. The training loss's cells are the overlay of
+all examples' walls, so they are tiny: "carve by: first K examples" and raise K to watch the cells shatter. "every example" shows the true cells (usually finer than the grid).</li>
+<li><b>straight vs curved walls</b>: along first-layer weights and biases (→x / →y in the inspector) a pre-activation is linear in the weight, so the walls are straight lines;
+deeper, they bend.</li>
+<li><b>directions</b>: random filter-normalized (Li et al. 2018), one weight, scaling a tensor, −gradient, Hessian eigenvectors (Lanczos; rank 0 = sharpest),
+the training path's principal components, toward the init. "walls crossed in training" evaluates every checkpoint of the run in order.</li>
+<li><b>click</b> any point to move the live model there; every other view shows that network. "back to θ₀" returns. The yellow ring is where the live model is now.</li>
 </ul>
 
 <h3>keys</h3>

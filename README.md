@@ -12,9 +12,10 @@ own spaces (phase 1), then in the loss landscape over its parameters (phase 2).
 ```
 npm install
 npm run dev          # http://localhost:3000
-npm test             # gradient checks (every op, 14 architecture variants) + training tests
+npm test             # gradient checks (every op, 14 architecture variants), training, landscape tests
 npm run test:ui      # browser suite: every control, preset, view, edit (needs the dev server)
 npm run sweep        # headless training runs for choosing defaults
+npm run walls        # how finely the activations carve the loss landscape (see below)
 npm run typecheck
 ```
 
@@ -124,15 +125,91 @@ Init edits re-initialize.
 At d_model ≠ 3, the residual view projects onto the top 3 principal axes of all
 stages together and says so on screen.
 
+## Phase 2: the loss landscape and its cells
+
+The **loss landscape** tab slices parameter space:
+θ = θ₀ + a·u + b·v (+ c·w).
+
+Every point of the slice is a whole network, and two things are evaluated
+there:
+
+- its loss and accuracy on the whole dataset;
+- its **activation pattern**: which MLP neurons fire, for every position of
+  every example.
+
+Points with the same pattern form a **cell**. Inside a cell every ReLU is a
+fixed 0/1 mask, so the network is one fixed composition of linear maps,
+softmaxes and norms. The loss is therefore smooth there. It can only kink on
+the **walls**, where some neuron switches for some input. The cells are the
+volumes the activation functions carve into the loss landscape.
+
+What it shows:
+
+- **1D:** a line with every wall it crosses, plus accuracy and "switches from
+  θ₀" strips.
+- **Training path:** every checkpoint of the run evaluated in order, showing
+  how many walls training crossed.
+- **2D:** a map and a height surface of log loss, with cells painted, exact
+  walls, loss contours, the training trajectory projected into the slice, and
+  a live "you are here" marker.
+- **3D:** a volume with movable slice planes, a loss level set painted by
+  cell, and the walls as a point cloud.
+
+**Directions:**
+- random, filter-normalized as in
+  [Li et al. 2018](https://arxiv.org/abs/1712.09913);
+- any single weight (the inspector's →x / →y buttons);
+- scaling a whole tensor;
+- the −gradient;
+- Hessian eigenvectors (Lanczos on finite-difference Hessian-vector products);
+- principal components of the training path;
+- toward the initialization.
+
+Click any point to move the live model there, and every other view shows that
+network.
+
+**What it reveals.** Every example lays its own walls: an example's walls are
+where one of its (neuron, position) pre-activations crosses zero. The training
+loss's cells are the overlay of all examples' walls, so they are very small.
+Along a random filter-normalized line through the trained default model (from
+`npm run walls`):
+
+| range | walls on 400 points, every example | layer 0 only | one neuron | one example |
+|---|---|---|---|---|
+| ±0.3 | 399 | 399 | 208 | 59 |
+| ±0.1 | 398 | 365 | 86 | 24 |
+| ±0.01 | 232 | 102 | 8 | 3 |
+
+At the scale of any picture, the true cells are finer than the grid. The
+"carve by" control therefore offers coarser carvings:
+- the first K examples (raise K to watch the cells shatter);
+- one layer;
+- one neuron;
+- attention argmax;
+- predictions, whose cells are where the 0–1 loss is constant.
+
+Along first-layer weights and biases, a pre-activation is linear in the
+weight, so the walls are straight lines. Deeper in the network they bend.
+
+The landscape runs on a pool of web workers (`src/engine/landscape.ts`,
+`landscape.worker.ts`, `src/app/landscapePool.ts`). Grids fill coarse to fine,
+so the whole slice appears at once and then sharpens. Tests
+(`tests/landscape.test.ts`) check that:
+- the Hessian-vector products are symmetric;
+- Lanczos returns a true eigenpair;
+- the predicted walls sit exactly at the analytic switching points of a
+  first-layer neuron;
+- one example's walls are a subset of the full dataset's.
+
 ## Layout
 
 ```
-src/engine/   autograd, ops, model, optimizers, tasks, trainer, worker, spec, linalg
+src/engine/   autograd, ops, model, optimizers, tasks, trainer, worker, spec, linalg, landscape (+ worker)
 src/app/      signal store, session (mirror model + worker), cached forward traces, presets/URL/save
 src/ui/       controls, left panel, map, inspector, heatmap editor, charts, palette, help
-src/views/    residual space, attention, MLP cells, playground, shared 3D stage + geometry helpers
+src/views/    residual space, attention, MLP cells, playground, loss landscape, iso-surfaces, shared 3D stage
 tests/        gradient checks, training/determinism/optimizer/task tests
-scripts/      ui-test.mjs (browser suite), shot.mjs (screenshot helper), sweep*.ts
+scripts/      ui-test.mjs (browser suite), shot.mjs (screenshot helper), sweep*.ts, walls.ts
 vendor/       plainpanel (signals + bindings, vendored)
 ```
 

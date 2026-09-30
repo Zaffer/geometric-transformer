@@ -122,4 +122,6 @@ export const ui = {
   /** selected attention head and MLP neuron (shared across views) */
   head: signal(0),
   neuron: signal(-1),
+  /** request from the inspector: make a weight a landscape axis */
+  landscapeAxis: signal<{ axis: number; name: string; index: number; seq: number } | null>(null),
 };

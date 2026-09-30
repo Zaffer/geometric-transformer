@@ -137,7 +137,11 @@ export function buildInspector(root: HTMLElement, session: Session): void {
       about.className = 'note';
       about.textContent = p.about;
       const lb = labels(p, model, vocab);
+      let lastCell = 0;
       const hm = new Heatmap({
+        onHover: (i) => {
+          if (i !== null) lastCell = i;
+        },
         rows: p.t.rows,
         cols: p.t.cols,
         rowLabels: lb.rows,
@@ -207,6 +211,16 @@ export function buildInspector(root: HTMLElement, session: Session): void {
       ri.title = 'draw this tensor fresh from the init spec';
       ri.onclick = () => session.reinitTensor(p.name);
       ops.append(ri);
+      for (const [axis, label] of [[0, '→x'], [1, '→y']] as const) {
+        const b = document.createElement('button');
+        b.textContent = label;
+        b.title = `use the last cell you hovered as landscape axis ${label.slice(1)} (an exact slice along one weight)`;
+        b.onclick = () => {
+          ui.landscapeAxis({ axis, name: p.name, index: lastCell, seq: Math.random() });
+          ui.tab('landscape');
+        };
+        ops.append(b);
+      }
       if (p.mask) {
         const um = document.createElement('button');
         um.textContent = 'unfreeze cells';

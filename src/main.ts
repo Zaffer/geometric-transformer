@@ -20,6 +20,7 @@ import { ResidualView } from './views/residual';
 import { AttentionView } from './views/attention';
 import { MlpView } from './views/mlp';
 import { PlaygroundView } from './views/playground';
+import { LandscapeView } from './views/landscape';
 
 // ---- initial spec: URL hash > default ----
 const fromUrl = location.hash.startsWith('#s=') ? decodeSpec(location.hash.slice(3)) : null;
@@ -204,6 +205,7 @@ const allViews: View[] = [
   new AttentionView(session),
   new MlpView(session),
   new PlaygroundView(session),
+  new LandscapeView(session),
 ];
 for (const v of allViews) {
   v.el.classList.add('view');
