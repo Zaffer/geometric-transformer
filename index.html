@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>geometric transformer</title>
+  </head>
+  <body>
+    <header id="top">
+      <strong class="brand">geometric transformer <small>v2</small></strong>
+      <span class="group">
+        <button id="btnRun" data-on="click:actions.toggleRun" data-text="views.runLabel" title="start / pause training (space)"></button>
+        <button data-on="click:actions.step1" title="one optimizer step (→)">step</button>
+        <button data-on="click:actions.step100" title="one hundred optimizer steps">+100</button>
+        <button data-on="click:actions.resetWeights" title="re-initialize every weight from the init spec (R)">reset weights</button>
+      </span>
+      <span class="stat">step <output data-text="views.step"></output></span>
+      <span class="stat">loss <output data-text="views.loss"></output></span>
+      <span class="stat">train <output data-text="views.trainAcc"></output></span>
+      <span class="stat">val <output data-text="views.valAcc"></output></span>
+      <span class="stat">params <output data-text="views.nParams"></output></span>
+      <span class="stat muted" data-text="views.speed"></span>
+      <span class="spacer"></span>
+      <span class="group">
+        <button data-on="click:actions.copyLink" title="copy a link that reproduces this spec">link</button>
+        <button data-on="click:actions.save" title="download spec + weights as JSON">save</button>
+        <button data-on="click:actions.load" title="load a saved JSON file">load</button>
+        <button data-on="click:actions.toggleTheme" data-text="views.themeLabel" title="light / dark"></button>
+        <button popovertarget="helpPop" title="what am I looking at?">?</button>
+      </span>
+    </header>
+
+    <div popover id="helpPop"></div>
+
+    <aside id="left"></aside>
+    <nav id="map" aria-label="architecture map"></nav>
+
+    <main id="center">
+      <div id="tabs" role="tablist"></div>
+      <div id="views"></div>
+    </main>
+
+    <aside id="right"></aside>
+
+    <footer id="bottom"></footer>
+
+    <div class="rz" data-rz="left" role="separator" aria-orientation="vertical" aria-label="resize left panel"></div>
+    <div class="rz" data-rz="map" role="separator" aria-orientation="vertical" aria-label="resize map"></div>
+    <div class="rz" data-rz="right" role="separator" aria-orientation="vertical" aria-label="resize right panel"></div>
+    <div class="rz" data-rz="bottom" role="separator" aria-orientation="horizontal" aria-label="resize bottom panel"></div>
+
+    <div id="tooltip" hidden></div>
+    <input type="file" id="fileIn" accept=".json,application/json" hidden />
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
