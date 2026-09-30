@@ -1,7 +1,7 @@
 {
   "name": "geometric-transformer",
   "private": true,
-  "version": "0.1.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,8 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "test:ui": "node scripts/ui-test.mjs",
-    "test:ui:webgpu": "WEBGPU=1 node scripts/ui-test.mjs"
+    "test:ui": "node scripts/ui-test.mjs"
   },
   "dependencies": {
     "three": "^0.185.1"
