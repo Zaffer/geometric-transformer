@@ -243,58 +243,59 @@ export function buildInspector(root: HTMLElement, session: Session): void {
     }
   };
 
-  effect(() => {
-    ui.focus();
-    rt.modelVersion();
-    untracked(build);
-  });
-
-  // the selected MLP neuron: its column of W1 / b1, its row of W2
-  effect(() => {
-    const n = ui.neuron();
-    ui.focus();
-    rt.modelVersion();
-    untracked(() => {
-      for (const { p, h } of heats) {
-        const leaf = p.name.split('.').pop();
-        if (leaf === 'W1' || leaf === 'b1') h.highlight(-1, n);
-        else if (leaf === 'W2') h.highlight(n, -1);
-      }
-    });
-  });
 
   // data updates
   let gradT = 0;
+  const update = (force = false) => {
+    const mode = ui.heatMode();
+    const now = performance.now();
+    let g: Map<string, Float64Array> | null = null;
+    if (mode === 'grad') {
+      if (!force && now - gradT < 150 && rt.running()) return;
+      gradT = now;
+      g = fullGrad();
+    }
+    const stats = rt.stats();
+    for (const { p, h } of heats) {
+      if (g) {
+        const d = g.get(p.name)!;
+        h.set(d.map((v) => -v), { mask: p.mask });
+      } else h.set(p.t.data, { mask: p.mask });
+      const el = root.querySelector<HTMLElement>(`[data-stat="${CSS.escape(p.name)}"]`);
+      const st = stats?.find((s) => s.name === p.name);
+      if (el) el.textContent = `|W| ${fmtNum(norm(p.t.data))}${st ? ` |∇| ${fmtNum(st.grad)}` : ''}${p.frozen ? ' frozen' : ''}`;
+    }
+    const pr = probe();
+    for (const a of acts) {
+      const t = pr.fwd.trace.get(a.key);
+      if (t && t.rows === a.h.rows && t.cols === a.h.cols) a.h.set(t.data);
+      else if (t) return rebuild();
+    }
+  };
+  const rebuild = () => {
+    build();
+    update(true);
+    const n = ui.neuron();
+    for (const { p, h } of heats) {
+      const leaf = p.name.split('.').pop();
+      if (leaf === 'W1' || leaf === 'b1') h.highlight(-1, n);
+      else if (leaf === 'W2') h.highlight(n, -1);
+    }
+  };
+  // structure: rebuilt when the focus or the model changes (and filled at once);
+  // the selected MLP neuron highlights its column of W1 / b1 and its row of W2
+  effect(() => {
+    ui.focus();
+    ui.neuron();
+    ui.heatMode();
+    rt.modelVersion();
+    untracked(rebuild);
+  });
   effect(() => {
     rt.paramsVersion();
-    const mode = ui.heatMode();
     ui.probe();
     ui.probeTokens();
-    untracked(() => {
-      const now = performance.now();
-      let g: Map<string, Float64Array> | null = null;
-      if (mode === 'grad') {
-        if (now - gradT < 150 && rt.running()) return;
-        gradT = now;
-        g = fullGrad();
-      }
-      const stats = rt.stats();
-      for (const { p, h } of heats) {
-        if (g) {
-          const d = g.get(p.name)!;
-          h.set(d.map((v) => -v), { mask: p.mask });
-        } else h.set(p.t.data, { mask: p.mask });
-        const el = root.querySelector<HTMLElement>(`[data-stat="${CSS.escape(p.name)}"]`);
-        const st = stats?.find((s) => s.name === p.name);
-        if (el) el.textContent = `|W| ${fmtNum(norm(p.t.data))}${st ? ` |∇| ${fmtNum(st.grad)}` : ''}${p.frozen ? ' frozen' : ''}`;
-      }
-      const pr = probe();
-      for (const a of acts) {
-        const t = pr.fwd.trace.get(a.key);
-        if (t && t.rows === a.h.rows && t.cols === a.h.cols) a.h.set(t.data);
-        else if (t) return untracked(build);
-      }
-    });
+    untracked(() => update());
   });
 }
 

@@ -204,8 +204,10 @@ export class Session {
           charts.evalStep.push(m.step);
           charts.trainLoss.push(m.train.loss);
           charts.valLoss.push(m.val.n ? m.val.loss : null);
-          charts.trainAcc.push(m.train.seqAcc);
-          charts.valAcc.push(m.val.n ? m.val.seqAcc : null);
+          // text: whole-window accuracy is meaningless, use per-token accuracy
+          const tok = this.trainer.spec.task.kind === 'text';
+          charts.trainAcc.push(tok ? m.train.tokenAcc : m.train.seqAcc);
+          charts.valAcc.push(m.val.n ? (tok ? m.val.tokenAcc : m.val.seqAcc) : null);
         });
         break;
       case 'history': {

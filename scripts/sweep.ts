@@ -1,9 +1,8 @@
-// Quick headless sweep: does a configuration learn? (dev tool)
+// Headless training runs for choosing defaults (see sweep-run.ts).
 import { Trainer } from '../src/engine/trainer';
-import { defaultSpec } from '../src/engine/spec';
+import { defaultSpec, type Spec } from '../src/engine/spec';
 
-const configs: [string, (s: ReturnType<typeof defaultSpec>) => void][] = JSON.parse(process.env.CFG ?? 'null') ?? [];
-export function run(label: string, mut: (s: ReturnType<typeof defaultSpec>) => void, steps = 3000) {
+export function run(label: string, mut: (s: Spec) => void, steps = 3000): void {
   const s = defaultSpec();
   mut(s);
   const tr = new Trainer(s);
@@ -11,11 +10,10 @@ export function run(label: string, mut: (s: ReturnType<typeof defaultSpec>) => v
   let out = '';
   for (let i = 1; i <= steps; i++) {
     tr.trainStep();
-    if (i % (steps / 4) === 0) {
+    if (i % Math.max(1, Math.floor(steps / 4)) === 0) {
       const e = tr.evalAll();
-      out += ` | ${i}: tr ${e.train.loss.toFixed(3)} acc ${e.train.seqAcc.toFixed(2)} val ${e.val.seqAcc.toFixed(2)}`;
+      out += ` | ${i}: loss ${e.train.loss.toFixed(3)} acc ${e.train.seqAcc.toFixed(2)} val ${e.val.seqAcc.toFixed(2)}`;
     }
   }
-  console.log(`${label.padEnd(40)} params ${tr.model.numParams()} ${((performance.now() - t0) / steps).toFixed(2)}ms/step${out}`);
+  console.log(`${label.padEnd(28)} ${tr.model.numParams()} params ${((performance.now() - t0) / steps).toFixed(2)} ms/step${out}`);
 }
-void configs;

@@ -53,6 +53,10 @@ class LineChart {
     new ResizeObserver(() => this.draw()).observe(this.el);
   }
 
+  setTitle(t: string): void {
+    this.el.querySelector('.title')!.textContent = t;
+  }
+
   setMarker(step: number | null): void {
     this.marker = step;
     this.draw();
@@ -261,6 +265,7 @@ export function buildCharts(root: HTMLElement, session: Session): { redraw(): vo
     untracked(() => {
       hist = [];
       slider.max = '0';
+      accChart.setTitle(session.trainer.spec.task.kind === 'text' ? 'token accuracy' : 'sequence accuracy');
     });
   });
 

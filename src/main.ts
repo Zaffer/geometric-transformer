@@ -326,4 +326,8 @@ effect(() => {
 if (params.get('train') === '1') session.run(true);
 
 // test / debug handle
-(window as unknown as Record<string, unknown>).__gt = { session, rt, ui, spec, actions, views: allViews };
+(window as unknown as Record<string, unknown>).__gt = {
+  session, rt, ui, spec, actions, views: allViews, loadSave,
+  saveNow: () => saveFile(session.trainer.spec, session.model, rt.viewStep()),
+  encode: () => encodeSpec(session.trainer.spec),
+};

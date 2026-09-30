@@ -572,7 +572,7 @@ export class ResidualView implements View {
         if (len < 1e-6) return;
         const arrow = new THREE.ArrowHelper(p.clone().normalize(), new THREE.Vector3(), len, color, Math.min(0.2 * len, this.radius * 0.08), Math.min(0.1 * len, this.radius * 0.04));
         this.overlays.add(arrow);
-        this.stage.label(text, p.clone().multiplyScalar(1.08), `#${color.getHexString(THREE.SRGBColorSpace)}`);
+        this.stage.label(text, p.clone().multiplyScalar(1.08));
       };
       if (st.key === 'resid.embed') {
         const wte = model.p('wte');
@@ -592,7 +592,11 @@ export class ResidualView implements View {
         }
         let mx = 0;
         for (let k2 = 0; k2 < V; k2++) mx = Math.max(mx, Math.hypot(...U.subarray(k2 * D, k2 * D + D)));
-        const sc = mx > 0 ? (this.radius * 0.9) / mx : 1;
+        // arrows sized to this stage's point cloud, not the whole scene
+        const P = this.P[Math.min(k, this.P.length - 1)];
+        let rs = 0;
+        for (let i = 0; i < P.length; i += 3) rs = Math.max(rs, Math.hypot(P[i], P[i + 1], P[i + 2]));
+        const sc = mx > 0 ? (Math.max(rs, 0.3) * 1.3) / mx : 1;
         for (let k2 = 0; k2 < Math.min(V, 12); k2++) addArrow(U, k2 * D, colorOf(catColor(k2)), `u:${vocab[k2]}`, sc);
       }
     }
@@ -604,7 +608,7 @@ export class ResidualView implements View {
 
   private frame(dt: number): boolean {
     let anim = false;
-    const target = ui.stage();
+    const target = Math.max(0, Math.min(this.stages.length - 1, ui.stage()));
     if (this.playing) {
       this.s += dt * 0.9;
       if (this.s >= this.stages.length - 1) {
@@ -615,6 +619,8 @@ export class ResidualView implements View {
       const k = Math.round(this.s);
       if (k !== ui.stage()) ui.stage(k);
       anim = true;
+    } else if (ui.stage() !== target) {
+      ui.stage(target);
     } else if (Math.abs(this.s - target) > 1e-3) {
       const d = target - this.s;
       this.s += Math.sign(d) * Math.min(Math.abs(d), dt * 3);
