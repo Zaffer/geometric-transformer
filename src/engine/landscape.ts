@@ -64,6 +64,9 @@ export interface PointEval {
 
 export const EVAL_STRIDE = 5 + 2 * CARVES.length;
 
+/** examples evaluated per landscape point (the default tasks have far fewer) */
+export const EVAL_CAP = 2048;
+
 export function packEval(e: PointEval, out: Float64Array, o: number): void {
   out[o] = e.loss;
   out[o + 1] = e.acc;
@@ -106,7 +109,7 @@ export class Evaluator {
   private centerBits: Uint8Array | null = null;
   carve: CarveOpts = { k: 1, layer: 0, neuron: 0 };
 
-  constructor(spec: Spec, split: 'train' | 'val' | 'all' = 'train', cap = 512) {
+  constructor(spec: Spec, split: 'train' | 'val' | 'all' = 'train', cap = EVAL_CAP) {
     this.data = buildDataset(spec.task);
     this.model = new Model(spec.model, this.data.vocab.length, this.data.T, spec.init);
     const ex = split === 'train' ? this.data.train : split === 'val' ? this.data.val : [...this.data.train, ...this.data.val];
@@ -302,9 +305,10 @@ export class Evaluator {
 
 // ---- directions ----
 
-/** A random direction, filter-normalized (Li et al. 2018): each row of every
- *  weight matrix / embedding is scaled to the norm of the same row of θ;
- *  biases and norm gains get no component. */
+/** A random direction, filter-normalized (Li et al. 2018): each filter (one
+ *  neuron's incoming weights: a column of an x @ W matrix, a row of an
+ *  embedding table) is scaled to the norm of the same filter of θ; biases
+ *  and norm gains get no component. */
 export function randomDirection(model: Model, theta: ArrayLike<number>, seed: number, norm: DirNorm): Float64Array {
   const rng = new RNG(seed * 7919 + 17);
   const d = new Float64Array(model.numParams());
@@ -314,14 +318,18 @@ export function randomDirection(model: Model, theta: ArrayLike<number>, seed: nu
     const matrix = p.kind === 'weight' || p.kind === 'embed';
     for (let i = 0; i < p.t.size; i++) d[o + i] = norm === 'filter' && !matrix ? 0 : rng.normal();
     if (norm === 'filter' && matrix) {
-      for (let r = 0; r < R; r++) {
+      // index of element i of filter f
+      const byCol = p.kind === 'weight';
+      const nF = byCol ? C : R, len = byCol ? R : C;
+      const at = (f: number, i: number) => o + (byCol ? i * C + f : f * C + i);
+      for (let f = 0; f < nF; f++) {
         let dn = 0, tn = 0;
-        for (let c = 0; c < C; c++) {
-          dn += d[o + r * C + c] ** 2;
-          tn += Number(theta[o + r * C + c]) ** 2;
+        for (let i = 0; i < len; i++) {
+          dn += d[at(f, i)] ** 2;
+          tn += Number(theta[at(f, i)]) ** 2;
         }
-        const f = dn > 0 ? Math.sqrt(tn / dn) : 0;
-        for (let c = 0; c < C; c++) d[o + r * C + c] *= f;
+        const sc = dn > 0 ? Math.sqrt(tn / dn) : 0;
+        for (let i = 0; i < len; i++) d[at(f, i)] *= sc;
       }
     }
     o += p.t.size;

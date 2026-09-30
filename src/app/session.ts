@@ -25,6 +25,8 @@ export class Session {
   private evalTimer = 0;
   private historyWaiters: ((h: Snapshot[]) => void)[] = [];
   private bumpT = 0;
+  /** version at the last chart reset: older messages never reach the charts */
+  private chartVersion = 0;
   private bumpTimer = 0;
 
   constructor(spec: Spec) {
@@ -53,8 +55,9 @@ export class Session {
   }
 
   /** Push the mirror's full state (spec + weights + meta) to the worker. */
-  private load(resetHistory: boolean) {
+  private load(resetHistory: boolean, keepOptState = false) {
     this.version++;
+    if (!resetHistory) rt.historyVersion(rt.historyVersion() + 1);
     this.send({
       type: 'load',
       spec: cloneSpec(this.trainer.spec),
@@ -63,6 +66,7 @@ export class Session {
       step: this.trainer.step,
       version: this.version,
       resetHistory,
+      keepOptState,
     });
   }
 
@@ -76,7 +80,7 @@ export class Session {
     this.trainer = new Trainer(cloneSpec(spec), keep ? old.model : undefined);
     this.trainer.step = keep ? old.step : 0;
     if (!keep) this.clearCharts();
-    this.load(!keep);
+    this.load(!keep, keep);
     batch(() => {
       rt.step(this.trainer.step);
       rt.viewStep(this.trainer.step);
@@ -88,6 +92,23 @@ export class Session {
 
   clearCharts(): void {
     for (const s of Object.values(charts)) s.clear();
+    this.chartVersion = this.version + 1;
+  }
+
+  /** Branching: drop chart points from the abandoned future. */
+  private truncateCharts(step: number): void {
+    const cut = (xs: typeof charts.lossStep, ys: (typeof charts.loss)[]) => {
+      const x = xs.read().slice(), cols = ys.map((y) => y.read().slice());
+      xs.clear();
+      ys.forEach((y) => y.clear());
+      x.forEach((v, i) => {
+        if (v === null || v > step) return;
+        xs.push(v);
+        ys.forEach((y, k) => y.push(cols[k][i] ?? null));
+      });
+    };
+    cut(charts.lossStep, [charts.loss, charts.gradNorm]);
+    cut(charts.evalStep, [charts.trainLoss, charts.valLoss, charts.trainAcc, charts.valAcc]);
   }
 
   setOptim(o: Spec['optim']): void {
@@ -180,8 +201,16 @@ export class Session {
   private onMessage(m: FromWorker) {
     switch (m.type) {
       case 'state': {
-        if (m.version < this.version) return; // stale: an edit is in flight
         if (m.flat.length !== this.model.numParams()) return; // from before a rebuild
+        if (m.version < this.version) {
+          // stale weights (an edit is in flight), but its loss points are real
+          if (m.version >= this.chartVersion) for (const pt of m.points) {
+            charts.loss.push(pt.loss);
+            charts.lossStep.push(pt.step);
+            charts.gradNorm.push(pt.gradNorm);
+          }
+          return;
+        }
         batch(() => {
           for (const pt of m.points) {
             charts.loss.push(pt.loss);
@@ -205,7 +234,7 @@ export class Session {
         break;
       }
       case 'eval':
-        if (rt.scrubbing()) return;
+        if (rt.scrubbing() || m.version < this.version) return;
         batch(() => {
           rt.train(m.train);
           rt.val(m.val);
@@ -276,6 +305,7 @@ export class Session {
     if (!rt.scrubbing()) return;
     if (this.liveFlat) this.model.setFlat(this.liveFlat);
     this.liveFlat = null;
+    this.trainer.step = this.liveStep;
     batch(() => {
       rt.scrubbing(false);
       rt.viewStep(this.liveStep);
@@ -287,11 +317,7 @@ export class Session {
   /** Branch: continue training from the checkpoint on screen. */
   resumeFromHere(): void {
     if (!rt.scrubbing()) return;
-    const step = rt.viewStep();
     this.claimScrub();
-    this.trainer.step = step;
-    this.load(false);
-    rt.step(step);
   }
 
   /** An edit while scrubbing makes the shown checkpoint the live state. */
@@ -302,6 +328,7 @@ export class Session {
     rt.scrubbing(false);
     this.trainer.step = step;
     this.load(false);
+    this.truncateCharts(step);
     rt.step(step);
   }
 }

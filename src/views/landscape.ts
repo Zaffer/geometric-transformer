@@ -20,8 +20,10 @@ import type { Session, Snapshot } from '../app/session';
 import { LandscapePool } from '../app/landscapePool';
 import { rt, ui } from '../app/state';
 import {
+  EVAL_CAP,
   EVAL_STRIDE,
   coarseToFine,
+  dot,
   orthogonalize,
   projectToSlice,
   randomDirection,
@@ -211,7 +213,8 @@ export class LandscapeView implements View {
         if (other.kind !== 'weight') {
           other.kind = 'weight';
           other.name = req.name;
-          other.index = req.index + 1;
+          const size = this.session.model.byName.get(req.name)?.t.size ?? 1;
+          other.index = req.index + 1 < size ? req.index + 1 : Math.max(0, req.index - 1);
         }
         this.cfg.norm = 'none';
         this.cfg.ranges[2] = Math.max(0.5, this.cfg.ranges[2]);
@@ -605,19 +608,28 @@ export class LandscapeView implements View {
     const s = this.slice;
     if (!s) return '';
     const secs = ((s.elapsed || performance.now() - s.t0) / 1000).toFixed(1);
-    return `${s.done}/${s.total} points · ${secs}s · ${this.pool?.size ?? 0} workers`;
+    const d = this.session.data;
+    const nEx = this.cfg.split === 'train' ? d.train.length : this.cfg.split === 'val' ? d.val.length : d.train.length + d.val.length;
+    const capped = nEx > EVAL_CAP ? ` · loss on the first ${EVAL_CAP} of ${nEx} examples` : ` · ${nEx} examples per point`;
+    return `${s.done}/${s.total} points · ${secs}s · ${this.pool?.size ?? 0} workers${capped}`;
   }
 
   // ---------------------------------------------------------------- compute
 
+  private historyKey = -1;
+
   private async getHistory(): Promise<Snapshot[]> {
-    if (!this.history || (this.history.length && this.history[this.history.length - 1].step < rt.step() - 50)) this.history = await this.session.fetchHistory();
+    const last = this.history?.[this.history.length - 1]?.step ?? -1;
+    if (!this.history || this.historyKey !== rt.historyVersion() || Math.abs(last - rt.step()) > 50) {
+      this.historyKey = rt.historyVersion();
+      this.history = await this.session.fetchHistory();
+    }
     return this.history;
   }
 
-  private async computeEigen(): Promise<void> {
+  private async computeEigen(at?: Float64Array): Promise<void> {
     if (!this.pool) return;
-    const center = this.slice?.center ?? this.session.model.flat();
+    const center = at ?? this.slice?.center ?? this.session.model.flat();
     this.eigenOut.textContent = 'computing Hessian spectrum…';
     const r = await this.pool.eigen(this.session.trainer.spec, this.cfg.split, center, 30);
     this.eigen = { ...r, key: `${rt.modelVersion()}:${this.slice?.paramsVersion ?? rt.paramsVersion()}` };
@@ -651,16 +663,16 @@ export class LandscapeView implements View {
         case 'gradient': {
           const g = await this.pool!.gradient(this.session.trainer.spec, this.cfg.split, center);
           d = g.grad.map((v) => -v);
-          const n = Math.hypot(...d);
+          const n = Math.sqrt(dot(d, d));
           if (n > 0) for (let j = 0; j < d.length; j++) d[j] /= n;
           label = '−∇L (unit)';
           break;
         }
         case 'hessian': {
-          const key = `${rt.modelVersion()}:${rt.paramsVersion()}`;
+          const key = `${rt.modelVersion()}:${rt.paramsVersion()}:${this.cfg.center}:${this.cfg.split}`;
           if (!this.eigen || this.eigen.key !== key) {
             this.setStatus('computing Hessian eigenvectors…');
-            await this.computeEigen();
+            await this.computeEigen(center);
             this.eigen!.key = key;
           }
           d = this.eigen!.vectors[Math.min(ax.k, this.eigen!.vectors.length - 1)].slice();
@@ -687,7 +699,7 @@ export class LandscapeView implements View {
           label = `random #${ax.seed}${this.cfg.norm === 'filter' ? ' (filter-norm)' : ''}`;
       }
       if (this.cfg.norm === 'unit' && ax.kind !== 'random') {
-        const n = Math.hypot(...d);
+        const n = Math.sqrt(dot(d, d));
         if (n > 0) for (let j = 0; j < d.length; j++) d[j] /= n;
       }
       dirs.push(d);
@@ -730,6 +742,7 @@ export class LandscapeView implements View {
       spec: JSON.stringify(spec.model), t0: performance.now(), elapsed: 0,
     };
     this.slice = slice;
+    this.path = null; // the old slice's projection has the wrong dimension
     this.updateHere();
     if (this.cfg.trajectory) void this.projectPath();
     const strideOf = (g: number) => {
@@ -1378,8 +1391,8 @@ export class LandscapeView implements View {
         mesh.rotation.x = Math.PI / 2;
         mesh.position.y = off;
       } else {
-        mesh.rotation.y = -Math.PI / 2;
-        mesh.rotation.z = -Math.PI / 2;
+        // local x → +y (axis b), local y → +z (axis c)
+        mesh.rotation.set(Math.PI / 2, Math.PI / 2, 0);
         mesh.position.x = off;
       }
       this.g3.add(mesh);
@@ -1444,7 +1457,7 @@ export class LandscapeView implements View {
       this.g3.add(new THREE.Points(wg, new THREE.PointsMaterial({ size: 2.5, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.55, depthWrite: false })));
     }
     // path
-    if (this.cfg.trajectory && this.path && this.path.a.length > 1) {
+    if (this.cfg.trajectory && this.path && this.path.a.length > 1 && this.path.a[0].length === 3) {
       const pts = this.path.a.map((a) => new THREE.Vector3(a[0] / s.R, a[1] / s.R, a[2] / s.R));
       this.g3.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: new THREE.Color(cssVar('sel')) })));
       this.stage.label('init', pts[0], css(token('sel')));
@@ -1452,7 +1465,7 @@ export class LandscapeView implements View {
     const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(2, 2, 2)), new THREE.LineBasicMaterial({ color: new THREE.Color(cssVar('border')) }));
     this.g3.add(box);
     this.stage.label('θ₀', new THREE.Vector3(0, 0, 0), css(token('text')));
-    if (this.here) this.stage.label('● model', new THREE.Vector3(this.here.a[0] / s.R, this.here.a[1] / s.R, this.here.a[2] / s.R), css(token('sel')));
+    if (this.here && this.here.a.length === 3) this.stage.label('● model', new THREE.Vector3(this.here.a[0] / s.R, this.here.a[1] / s.R, this.here.a[2] / s.R), css(token('sel')));
     this.stage.label(`a: ${s.labels[0]}`, new THREE.Vector3(0, -1.2, -1), css(token('muted')));
     this.stage.label(`b: ${s.labels[1]}`, new THREE.Vector3(-1.2, 0, -1), css(token('muted')));
     this.stage.label(`c: ${s.labels[2]}`, new THREE.Vector3(-1.2, -1.2, 0), css(token('muted')));

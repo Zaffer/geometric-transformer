@@ -40,6 +40,15 @@ export class Optimizer {
     this.spec = spec;
   }
 
+  /** Carry over moments for every param whose name and size still match (architecture edits). */
+  adoptState(other: Optimizer, model: Model): void {
+    this.t = other.t;
+    for (const p of model.params) {
+      const st = other.state.get(p.name);
+      if (st && st.m.length === p.t.size) this.state.set(p.name, { m: st.m.slice(), v: st.v.slice() });
+    }
+  }
+
   reset(): void {
     this.state.clear();
     this.t = 0;

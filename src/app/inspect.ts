@@ -11,6 +11,8 @@ import type { Session } from './session';
 import { rt, ui } from './state';
 
 export const VIEW_CAP = 256;
+/** the view set is capped by rows (examples × positions) so long contexts stay responsive */
+export const VIEW_ROWS = 2304;
 
 export interface ViewSet {
   examples: Example[];
@@ -63,7 +65,7 @@ export function viewSet(): ViewSet {
   const key = `${rt.modelVersion()}:${rt.paramsVersion()}`;
   if (vs && key === vsKey) return vs;
   const d = session.data;
-  const examples = [...d.val, ...d.train].slice(0, VIEW_CAP);
+  const examples = [...d.val, ...d.train].slice(0, Math.max(1, Math.min(VIEW_CAP, Math.floor(VIEW_ROWS / d.T))));
   const isVal = examples.map((_, i) => i < d.val.length);
   const { x, y, B } = packBatch(examples, d.T);
   const fwd = withGrad(false, () => session.model.forward(x, B, true));

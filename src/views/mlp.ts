@@ -613,18 +613,27 @@ export class MlpView implements View {
       const bits = new Uint8Array(c.F);
       const step = 2; // compute every other device pixel, fill 2x2
       const gw = Math.ceil(img.width / step);
-      const keys = new Float64Array(gw * Math.ceil(img.height / step));
+      // two 32-bit hashes of the pattern: exact for any d_mlp (a float key loses bits past 53)
+      const keys = new Uint32Array(gw * Math.ceil(img.height / step));
+      const keys2 = new Uint32Array(keys.length);
       for (let py = 0; py < img.height; py += step)
         for (let px = 0; px < img.width; px += step) {
           const z = mg.toZ(px / dpr, py / dpr);
           if (!z) continue;
           const on = this.pattern(z, 0, bits);
-          let key = 0;
-          for (let j = 0; j < c.F; j++) key = key * 2 + bits[j];
+          let key = 2166136261, key2 = 2166136261 ^ 0x5bd1e995;
+          for (let j = 0; j < c.F; j++) {
+            key = Math.imul(key ^ (bits[j] + 2 * j), 16777619);
+            key2 = Math.imul(key2 ^ (bits[j] * 131 + j), 16777619);
+          }
+          key >>>= 0;
+          key2 >>>= 0;
           const gi = (py / step) * gw + px / step;
           keys[gi] = key;
+          keys2[gi] = key2;
           let col = this.paintColor(bits, on);
-          const edge = (px > 0 && keys[gi - 1] !== key) || (py > 0 && keys[gi - gw] !== key);
+          const differs = (k: number) => keys[k] !== key || keys2[k] !== key2;
+          const edge = (px > 0 && differs(gi - 1)) || (py > 0 && differs(gi - gw));
           if (edge) col = [col[0] * 0.35, col[1] * 0.35, col[2] * 0.35];
           for (let dy = 0; dy < step; dy++)
             for (let dx = 0; dx < step; dx++) {

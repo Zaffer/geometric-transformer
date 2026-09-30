@@ -83,6 +83,21 @@ describe('training', () => {
     expect(tr.history[tr.history.length - 1].step).toBeGreaterThan(900);
   });
 
+  it('continuing from a step keeps the schedule and moments (no replay)', () => {
+    const s = defaultSpec();
+    s.optim.schedule = 'cosine';
+    s.optim.totalSteps = 100;
+    const a = new Trainer(s);
+    for (let i = 0; i < 99; i++) a.trainStep();
+    const b = new Trainer(s);
+    b.model.setFlat(a.model.flat());
+    b.setStep(a.step);
+    b.opt.adoptState(a.opt, b.model);
+    expect(b.opt.t).toBe(99);
+    const { stats } = b.trainStep();
+    expect(stats.lr).toBeLessThan(1e-4 * s.optim.lr * 100);
+  });
+
   it('schedules', () => {
     const o = defaultSpec().optim;
     o.warmup = 10;

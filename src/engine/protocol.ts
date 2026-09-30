@@ -31,7 +31,7 @@ export interface ParamStat {
 }
 
 export type ToWorker =
-  | { type: 'load'; spec: Spec; flat: Float64Array; meta: ParamMeta[]; step: number; version: number; resetHistory: boolean }
+  | { type: 'load'; spec: Spec; flat: Float64Array; meta: ParamMeta[]; step: number; version: number; resetHistory: boolean; keepOptState: boolean }
   | { type: 'optim'; optim: Spec['optim'] }
   | { type: 'run'; on: boolean }
   | { type: 'steps'; n: number }
@@ -52,6 +52,6 @@ export type FromWorker =
       stats: ParamStat[] | null;
       stepsPerSec: number;
     }
-  | { type: 'eval'; step: number; train: EvalResult; val: EvalResult }
+  | { type: 'eval'; step: number; version: number; train: EvalResult; val: EvalResult }
   | { type: 'history'; checkpoints: { step: number; loss: number; params: Float64Array }[] }
   | { type: 'error'; message: string };

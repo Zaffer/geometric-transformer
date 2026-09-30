@@ -121,6 +121,22 @@ describe('landscape', () => {
     expect(ev.evaluate(far).flips).toBeGreaterThan(0);
   });
 
+  it('filter normalization matches each neuron\'s incoming weights (columns of x@W)', () => {
+    const tr = trained(20);
+    const th = tr.model.flat();
+    const d = randomDirection(tr.model, th, 4, 'filter');
+    const off = tr.model.offsets().get('L0.mlp.W1')!;
+    const W = tr.model.p('L0.mlp.W1');
+    for (let c = 0; c < W.cols; c++) {
+      let dn = 0, tn = 0;
+      for (let r = 0; r < W.rows; r++) {
+        dn += d[off + r * W.cols + c] ** 2;
+        tn += th[off + r * W.cols + c] ** 2;
+      }
+      expect(Math.sqrt(dn)).toBeCloseTo(Math.sqrt(tn), 10);
+    }
+  });
+
   it('coarse-to-fine visits every grid point once', () => {
     for (const [n, k] of [[9, 2], [16, 2], [7, 3], [30, 1]]) {
       const o = coarseToFine(n, k);

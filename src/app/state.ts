@@ -88,6 +88,8 @@ export const rt = {
   viewStep: signal(0),
   /** scrubbing the timeline: views show a past checkpoint */
   scrubbing: signal(false),
+  /** bumps when the checkpoint history changes shape (a branch): caches of it are stale */
+  historyVersion: signal(0),
   error: signal(''),
 };
 

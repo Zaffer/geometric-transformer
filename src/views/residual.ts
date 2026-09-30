@@ -538,7 +538,9 @@ export class ResidualView implements View {
         fg.setAttribute('color', new THREE.Float32BufferAttribute(fanCol, 3));
         this.overlays.add(new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: paint ? 0.3 : 0.07, side: THREE.DoubleSide, depthWrite: false })));
         // the removed direction
-        const ax = new THREE.BufferGeometry().setFromPoints([ctr.clone().addScaledVector(new THREE.Vector3(1, 1, 1).normalize(), -R), ctr.clone().addScaledVector(new THREE.Vector3(1, 1, 1).normalize(), R)]);
+        // the circle's plane normal: (1,1,1) before the gain, ∝ 1/g after it
+        const nrm = new THREE.Vector3(1 / (g[0] || 1e-9), 1 / (g[1] || 1e-9), 1 / (g[2] || 1e-9)).normalize();
+        const ax = new THREE.BufferGeometry().setFromPoints([ctr.clone().addScaledVector(nrm, -R), ctr.clone().addScaledVector(nrm, R)]);
         this.overlays.add(new THREE.Line(ax, new THREE.LineDashedMaterial({ color: muted, dashSize: 0.08, gapSize: 0.06 })).computeLineDistances());
       }
     }

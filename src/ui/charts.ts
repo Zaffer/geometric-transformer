@@ -262,6 +262,7 @@ export function buildCharts(root: HTMLElement, session: Session): { redraw(): vo
   });
   effect(() => {
     rt.modelVersion();
+    rt.historyVersion();
     untracked(() => {
       hist = [];
       slider.max = '0';

@@ -11,6 +11,8 @@ let stepsPerSec = 0; // 0 = as fast as possible
 let points: StepPoint[] = [];
 let lastStats: ParamStat[] | null = null;
 let lastEval = 0;
+/** exact evals cost time: keep them to ~15% of the worker's time */
+let evalCost = 0;
 let lastPost = 0;
 let budget = 0;
 let lastTick = 0;
@@ -39,10 +41,12 @@ function sendState(force = false) {
   );
   points = [];
   lastStats = null;
-  if (force || now - lastEval > 250) {
-    lastEval = now;
+  if (force || now - lastEval > Math.max(250, evalCost * 6)) {
+    const t0 = performance.now();
     const e = tr.evalAll();
-    post({ type: 'eval', step: tr.step, train: e.train, val: e.val });
+    evalCost = performance.now() - t0;
+    lastEval = performance.now();
+    post({ type: 'eval', step: tr.step, version, train: e.train, val: e.val });
   }
 }
 
@@ -76,9 +80,14 @@ self.onmessage = (ev: MessageEvent<ToWorker>) => {
           const p = tr.model.byName.get(pm.name);
           if (p) Object.assign(p, { lrMult: pm.lrMult, frozen: pm.frozen, mask: pm.mask });
         }
-        tr.step = m.step;
-        if (!m.resetHistory && old) tr.history = old.history.filter((c) => c.step <= m.step && c.params.length === tr!.model.numParams());
-        else tr.history = [];
+        tr.setStep(m.step);
+        // architecture edits keep Adam's moments for every tensor that still fits;
+        // branching from a checkpoint starts them fresh (the future's moments are wrong)
+        if (old && m.keepOptState) tr.opt.adoptState(old.opt, tr.model);
+        if (!m.resetHistory && old) {
+          tr.history = old.history.filter((c) => c.step <= m.step && c.params.length === tr!.model.numParams());
+          tr.every = old.every;
+        } else tr.history = [];
         tr.checkpoint(NaN);
         version = m.version;
         points = [];

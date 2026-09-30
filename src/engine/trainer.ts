@@ -73,7 +73,8 @@ export class Trainer {
   step = 0;
   private rng: RNG;
   history: Checkpoint[] = [];
-  private every = 1;
+  /** checkpoint spacing in steps (doubles as the history thins) */
+  every = 1;
   readonly maxCheckpoints = 400;
 
   constructor(spec: Spec, keep?: Model) {
@@ -84,6 +85,14 @@ export class Trainer {
     this.opt = new Optimizer(spec.optim);
     this.rng = new RNG(spec.optim.seed);
     this.checkpoint(NaN);
+  }
+
+  /** Continue from a given step: the schedule, the batch stream and the
+   *  checkpoint spacing all pick up there instead of replaying from 0. */
+  setStep(step: number): void {
+    this.step = step;
+    this.opt.t = step;
+    this.rng = new RNG(this.spec.optim.seed + step);
   }
 
   /** Change optimizer settings without touching the weights. */
