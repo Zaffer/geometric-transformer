@@ -28,6 +28,10 @@ Edits apply to the running model at once, also while it trains.</p>
 
 <h3>views</h3>
 <ul>
+<li><b>network</b>: every unit is a sphere (its activation for the probe sequence); every scalar parameter is one synapse: weights, biases (from a constant-1 node)
+and norm gains (one-to-one into the norm). Each token position is its own sheet of the same network; the weights are shared, so synapses are drawn on the focused
+position. Yellow links are attention: synapses computed from the data (p), the only links between positions. Show weights, −gradient or flow (activation × weight).
+<b>Click</b> a synapse to edit it (the inspector highlights it), <b>shift+wheel</b> to nudge it; click a sphere on another sheet to focus that position.</li>
 <li><b>residual space</b>: every (example, position) as a point. The stage slider (or <kbd>[</kbd> <kbd>]</kbd>, or "flow") moves the points through the network.
 Norm stages show the norm's manifold: RMSNorm → a sphere of radius √3; LayerNorm → a circle (it removes the (1,1,1) direction, so at d=3 only an angle is left).
 At the final norm the manifold is painted by which token the unembedding picks there: the model predicts token k exactly when the point lands in k's region.</li>
@@ -53,7 +57,7 @@ the training path's principal components, toward the init. "walls crossed in tra
 </ul>
 
 <h3>keys</h3>
-<p><kbd>space</kbd> train / pause · <kbd>→</kbd> one step · <kbd>R</kbd> reset weights · <kbd>[</kbd> <kbd>]</kbd> stage · <kbd>1</kbd>–<kbd>5</kbd> views</p>
+<p><kbd>space</kbd> train / pause · <kbd>→</kbd> one step · <kbd>R</kbd> reset weights · <kbd>[</kbd> <kbd>]</kbd> stage · <kbd>1</kbd>–<kbd>6</kbd> views</p>
 
 <h3>why d_model = 3 and RMSNorm by default</h3>
 <p>At d=3, LayerNorm leaves only one degree of freedom (an angle on a circle): the "LayerNorm" preset trains, but less reliably. RMSNorm (Llama's choice)

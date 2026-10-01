@@ -21,6 +21,7 @@ import { AttentionView } from './views/attention';
 import { MlpView } from './views/mlp';
 import { PlaygroundView } from './views/playground';
 import { LandscapeView } from './views/landscape';
+import { NetworkView } from './views/network';
 
 // ---- initial spec: URL hash > default ----
 const fromUrl = location.hash.startsWith('#s=') ? decodeSpec(location.hash.slice(3)) : null;
@@ -201,6 +202,7 @@ document.getElementById('helpPop')!.innerHTML = HELP_HTML;
 const viewsEl = document.getElementById('views')!;
 const tabsEl = document.getElementById('tabs')!;
 const allViews: View[] = [
+  new NetworkView(session),
   new ResidualView(session),
   new AttentionView(session),
   new MlpView(session),

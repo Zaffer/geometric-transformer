@@ -91,6 +91,25 @@ Init edits re-initialize.
 
 ## Views
 
+- **Network:** the whole model as neurons and synapses, unrolled over token
+  positions. This is the first tab.
+  - Every unit of the forward pass is a sphere colored by its activation for
+    the probe sequence: the token and position one-hots, the residual stream,
+    norms, q / k / v, heads, the MLP's hidden neurons, the adds, and p(next).
+  - Every scalar parameter is exactly one synapse. Weights connect units,
+    biases come from a constant-1 node, and norm gains are the one-to-one
+    edges into a norm.
+  - Each position is its own sheet of the same network, stacked in depth.
+    The weights are shared, so synapses are drawn once, on the focused
+    position.
+  - Attention is the only thing linking sheets. Its yellow links run from
+    the earlier positions' k and v to the focused query, with strength p: a
+    synapse computed from the data, not a parameter.
+  - Synapses show the weight, the −gradient, or the flow (input activation ×
+    weight: what each one carries right now).
+  - Click a synapse to select it, edit it, freeze it, or send it to the loss
+    landscape as an axis. The inspector highlights the same cell. Shift+wheel
+    nudges the synapse under the cursor.
 - **Residual space:** every (example, position) is a point. The stage slider
   (or <kbd>[</kbd> <kbd>]</kbd>, or "flow") moves the points through the
   network, from the embedding through each sublayer's normalized input and each
@@ -207,10 +226,11 @@ so the whole slice appears at once and then sharpens. Tests
 src/engine/   autograd, ops, model, optimizers, tasks, trainer, worker, spec, linalg, landscape (+ worker)
 src/app/      signal store, session (mirror model + worker), cached forward traces, presets/URL/save
 src/ui/       controls, left panel, map, inspector, heatmap editor, charts, palette, help
-src/views/    residual space, attention, MLP cells, playground, loss landscape, iso-surfaces, shared 3D stage
+src/views/    network graph, residual space, attention, MLP cells, playground, loss landscape, iso-surfaces, shared 3D stage
 tests/        gradient checks, training/determinism/optimizer/task tests
 scripts/      ui-test.mjs (browser suite), shot.mjs (screenshot helper), sweep*.ts, walls.ts
 vendor/       plainpanel (signals + bindings, vendored)
 ```
 
 v1 (the neuron-and-synapse graph of a GPT-2) is on `main`; v2 is a fresh tree.
+Its network view is v2's redesign of that graph.

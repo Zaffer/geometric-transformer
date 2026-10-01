@@ -86,7 +86,7 @@ for (const p of QUICK ? presets.slice(0, 2) : presets) {
   await page.evaluate((p) => [...document.querySelectorAll('#left button')].find((b) => b.textContent.startsWith(p)).click(), p);
   await wait(400);
   await gt('__gt.actions.toggleRun()');
-  for (const tab of ['residual', 'attention', 'mlp', 'play']) {
+  for (const tab of ['network', 'residual', 'attention', 'mlp', 'play']) {
     await gt(`__gt.ui.tab('${tab}')`);
     await wait(700);
     drainLogs(`preset ${p} tab ${tab}`);
@@ -97,6 +97,87 @@ for (const p of QUICK ? presets.slice(0, 2) : presets) {
 }
 await page.evaluate(() => [...document.querySelectorAll('#left button')].find((b) => b.textContent.startsWith('sort (default)')).click());
 await wait(500);
+
+// ---- network: neurons and synapses ----
+await gt(`__gt.ui.tab('network')`);
+await gt('__gt.session.steps(300)');
+await wait(2500);
+const NV = '__gt.views.find((v) => v.id === "network")';
+check('network: every scalar parameter is one synapse', await gt(`(() => {
+  const v = ${NV}, m = __gt.session.model, seen = new Set(v.syns.map((s) => s.param + '#' + s.index));
+  return seen.size === m.numParams() && v.syns.length === m.numParams() + (m.spec.tie ? m.p('wte').size : 0);
+})()`));
+// a screen point where the view's own picker finds a synapse of this tensor
+const synAt = (name) => gt(`(() => {
+  const v = ${NV}, cam = v.stage.camera, r = v.stage.renderer.domElement.getBoundingClientRect();
+  for (let e = 0; e < v.syns.length; e++) {
+    if (v.syns[e].param !== '${name}' || !v.synShown[e]) continue;
+    const a = v.synA, b = v.synB;
+    for (const f of [0.3, 0.5, 0.7]) {
+      const p = cam.position.clone().set(a[e*3] + f*(b[e*3]-a[e*3]), a[e*3+1] + f*(b[e*3+1]-a[e*3+1]), a[e*3+2] + f*(b[e*3+2]-a[e*3+2])).project(cam);
+      const x = r.left + (p.x+1)/2*r.width, y = r.top + (1-p.y)/2*r.height;
+      if (x < r.left + 260 || x > r.right - 10 || y < r.top + 10 || y > r.bottom - 60) continue;
+      const h = v.pick({ clientX: x, clientY: y });
+      if (h && h.kind === 'syn' && h.k === e) return { index: v.syns[e].index, x, y };
+    }
+  }
+  return null;
+})()`);
+await page.evaluate(`(() => { const s = ${NV}.zoomSel; s.value = 'L0'; s.dispatchEvent(new Event('change')); })()`);
+await wait(400);
+const syn = await synAt('L0.mlp.W1');
+if (syn) {
+  await page.mouse.move(syn.x, syn.y);
+  await wait(200);
+  check('network: hover names the synapse', /^L0\.mlp\.W1\[/.test(await gt(`document.getElementById('tooltip').textContent`)));
+  await page.mouse.click(syn.x, syn.y);
+  await wait(400);
+  check('network: click selects the synapse', await gt(`(() => { const c = __gt.ui.cell(); return c && c.name === 'L0.mlp.W1' && c.index === ${syn.index} && __gt.ui.focus() === 'L0.mlp' && !${NV}.editor.hidden; })()`));
+  const w0 = await gt(`__gt.session.model.p('L0.mlp.W1').data[${syn.index}]`);
+  await page.keyboard.down('Shift');
+  await page.mouse.wheel({ deltaY: 100 });
+  await page.keyboard.up('Shift');
+  await wait(300);
+  const w1 = await gt(`__gt.session.model.p('L0.mlp.W1').data[${syn.index}]`);
+  check('network: shift+wheel nudges the weight down', w1 < w0, `${w0} → ${w1}`);
+  await page.evaluate(`(() => { const n = ${NV}.editorInputs.num; n.value = '0.4321'; n.dispatchEvent(new Event('change')); })()`);
+  await wait(300);
+  check('network: editor sets the weight', Math.abs((await gt(`__gt.session.model.p('L0.mlp.W1').data[${syn.index}]`)) - 0.4321) < 1e-12);
+} else check('network: found a pickable W1 synapse', false);
+// a unit on another position sheet (front-most under the cursor) moves the focus there
+const other = await gt(`(() => {
+  const v = ${NV}, cam = v.stage.camera, r = v.stage.renderer.domElement.getBoundingClientRect();
+  for (let k = 0; k < v.uT.length; k++) {
+    if (!v.uShown[k] || v.uT[k] === v.focusT) continue;
+    const p = cam.position.clone().set(v.uPos[k*3], v.uPos[k*3+1], v.uPos[k*3+2]).project(cam);
+    const x = r.left + (p.x+1)/2*r.width, y = r.top + (1-p.y)/2*r.height;
+    if (x < r.left + 260 || x > r.right - 10 || y < r.top + 10 || y > r.bottom - 60) continue;
+    const h = v.pick({ clientX: x, clientY: y });
+    if (h && h.kind === 'unit' && v.uT[h.k] !== v.focusT) return { t: v.uT[h.k], x, y };
+  }
+  return null;
+})()`);
+if (other) {
+  await page.mouse.click(other.x, other.y);
+  await wait(300);
+  check('network: clicking another sheet focuses that position', (await gt('__gt.ui.probePos()')) === other.t, JSON.stringify(other));
+} else check('network: found a unit on another sheet', false);
+for (const sel of await page.evaluate(() => [...document.querySelectorAll('.view:not([hidden]) .hud select')].map((s, i) => [i, [...s.options].map((o) => o.value)]))) {
+  for (const v of sel[1]) {
+    await page.evaluate(([i, v]) => {
+      const s = document.querySelectorAll('.view:not([hidden]) .hud select')[i];
+      s.value = v;
+      s.dispatchEvent(new Event('change'));
+    }, [sel[0], v]);
+    await wait(120);
+  }
+}
+for (let r = 0; r < 2; r++)
+  await page.evaluate(() => document.querySelectorAll('.view:not([hidden]) .hud input[type=checkbox]').forEach((c) => c.click()));
+await gt('__gt.actions.toggleRun()');
+await wait(1500);
+await gt('__gt.session.run(false)');
+drainLogs('network view');
 
 // ---- stages, flow, residual options ----
 await gt(`__gt.ui.tab('residual')`);

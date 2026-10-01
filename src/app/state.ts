@@ -112,7 +112,7 @@ export const ui = {
   focus: signal('L0.mlp'),
   /** one tensor in focus inside the node, or '' for all */
   focusParam: signal(''),
-  tab: signal('residual'),
+  tab: signal('network'),
   /** index into the model's stage list */
   stage: signal(0),
   /** the example being inspected (index into the view set), and its position */
@@ -124,6 +124,8 @@ export const ui = {
   /** selected attention head and MLP neuron (shared across views) */
   head: signal(0),
   neuron: signal(-1),
+  /** one selected scalar parameter (the network view's synapse), highlighted in the inspector */
+  cell: signal<{ name: string; index: number } | null>(null),
   /** request from the inspector: make a weight a landscape axis */
   landscapeAxis: signal<{ axis: number; name: string; index: number; seq: number } | null>(null),
 };

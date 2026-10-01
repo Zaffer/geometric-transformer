@@ -286,18 +286,28 @@ export function buildInspector(root: HTMLElement, session: Session): void {
       else if (t) return rebuild();
     }
   };
+  // the selected MLP neuron highlights its column of W1 / b1 and its row of W2;
+  // a selected synapse (network view) highlights its own row and column
+  const highlight = () => {
+    const n = ui.neuron(), cell = ui.cell();
+    for (const { p, h } of heats) {
+      const leaf = p.name.split('.').pop();
+      if (cell && cell.name === p.name) h.highlight(p.t.rows === 1 ? -1 : Math.floor(cell.index / p.t.cols), cell.index % p.t.cols);
+      else if (leaf === 'W1' || leaf === 'b1') h.highlight(-1, n);
+      else if (leaf === 'W2') h.highlight(n, -1);
+      else h.highlight(-1, -1);
+    }
+  };
   const rebuild = () => {
     build();
     update(true);
-    const n = ui.neuron();
-    for (const { p, h } of heats) {
-      const leaf = p.name.split('.').pop();
-      if (leaf === 'W1' || leaf === 'b1') h.highlight(-1, n);
-      else if (leaf === 'W2') h.highlight(n, -1);
-    }
+    highlight();
   };
-  // structure: rebuilt when the focus or the model changes (and filled at once);
-  // the selected MLP neuron highlights its column of W1 / b1 and its row of W2
+  // structure: rebuilt when the focus or the model changes (and filled at once)
+  effect(() => {
+    ui.cell();
+    untracked(highlight);
+  });
   effect(() => {
     ui.focus();
     ui.neuron();
