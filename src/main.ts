@@ -111,6 +111,40 @@ $('picker').onclick = (e) => {
   if (w !== undefined) state.tokens[state.pos] = Number(w);
 };
 
+// The left panel's edge drags. The network diagram is sized by the panel's width, so wider is bigger.
+{
+  const split = $('split'), root = document.documentElement, KEY = 'left-panel-width', DEFAULT = 440;
+  const set = (w: number, save = true) => {
+    w = Math.round(Math.min(Math.max(w, 320), Math.max(320, window.innerWidth - 380)));
+    root.style.setProperty('--left', `${w}px`);
+    if (save) try { localStorage.setItem(KEY, String(w)); } catch { /* private window: just don't remember */ }
+    return w;
+  };
+  let width = DEFAULT;
+  try { width = Number(localStorage.getItem(KEY)) || DEFAULT; } catch { /* as above */ }
+  width = set(width, false);
+  const move = (e: PointerEvent) => { width = set(e.clientX); };
+  const stop = () => {
+    document.body.classList.remove('resizing');
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', stop);
+    window.removeEventListener('pointercancel', stop);
+  };
+  split.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    document.body.classList.add('resizing');
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
+  });
+  split.addEventListener('dblclick', () => { width = set(DEFAULT); });
+  split.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') width = set(width - 24);
+    else if (e.key === 'ArrowRight') width = set(width + 24);
+  });
+  window.addEventListener('resize', () => { width = set(width, false); });
+}
+
 /** Assign HTML only when it changed, so hover and focus survive the frame loop. */
 const cache = new Map<HTMLElement, string>();
 const html = (e: HTMLElement, s: string) => { if (cache.get(e) !== s) { cache.set(e, s); e.innerHTML = s; } };
