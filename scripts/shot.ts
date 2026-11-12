@@ -14,6 +14,7 @@ const page = await browser.newPage();
 await page.setViewport({ width, height });
 const logs: string[] = [];
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warn') logs.push(`[${m.type()}] ${m.text().slice(0, 300)}`); });
+page.on('response', (r) => { if (r.status() >= 400) logs.push(`[http ${r.status()}] ${r.url()}`); });
 page.on('pageerror', (e) => logs.push(`[pageerror] ${String((e as Error).stack ?? e).slice(0, 600)}`));
 await page.goto(url, { waitUntil: 'load' });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

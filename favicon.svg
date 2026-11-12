@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="7" fill="#f6f4ee"/>
+  <!-- a sheet, folded along one line -->
+  <path d="M4 21 L15 8 L19 24 Z" fill="#4477AA"/>
+  <path d="M15 8 L28 13 L19 24 Z" fill="#EE6677"/>
+  <path d="M15 8 L19 24" stroke="#1c1b19" stroke-width="1.6" stroke-linecap="round"/>
+</svg>
