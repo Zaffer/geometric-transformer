@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>geometric transformer</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <aside id="left">
+    <header>
+      <h1>geometric transformer</h1>
+      <p id="blurb"></p>
+    </header>
+
+    <section id="train">
+      <div class="row">
+        <select id="task" title="What the model is trained to do"></select>
+        <button id="run" class="primary"></button>
+        <button id="reset" title="Start again from new random weights">New weights</button>
+      </div>
+      <div class="row stats">
+        <span>step <b id="steps">0</b></span>
+        <span>loss <b id="loss">–</b></span>
+        <span>correct <b id="acc">–</b></span>
+        <canvas id="spark" width="120" height="22" title="Loss over training (log scale)"></canvas>
+      </div>
+      <p id="about"></p>
+    </section>
+
+    <svg id="net"></svg>
+
+    <section id="param">
+      <div id="param-empty">Click any line in the network: each one is a single parameter.</div>
+      <div id="param-body" hidden>
+        <div class="row"><b id="param-name"></b><output id="param-value"></output></div>
+        <input id="param-slider" type="range" min="-6" max="6" step="0.01" />
+        <div class="row">
+          <label><input id="wiggle" type="checkbox" /> wiggle</label>
+          <button id="zero">Set to 0</button>
+          <button id="deselect">Done</button>
+        </div>
+        <p id="param-what"></p>
+      </div>
+    </section>
+  </aside>
+
+  <main id="stage">
+    <canvas id="gl"></canvas>
+
+    <div id="seq" class="panel">
+      <div class="cap">Sequence. Click a position to focus it.</div>
+      <div id="chips"></div>
+      <div id="picker"></div>
+    </div>
+
+    <div id="hud" class="panel">
+      <div id="modes" role="tablist"></div>
+      <p id="mode-text"></p>
+      <div id="legend"></div>
+    </div>
+
+    <div id="sliders" class="panel">
+      <label>flow <input id="flow" type="range" min="0" max="2" step="0.01" value="0" /><span id="flow-text"></span></label>
+      <label>lift <input id="lift" type="range" min="0" max="1" step="0.01" value="1" /><span id="lift-text"></span></label>
+      <label><input id="creases" type="checkbox" checked /> fold lines</label>
+      <label><input id="sheets" type="checkbox" checked /> all sheets</label>
+    </div>
+  </main>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
