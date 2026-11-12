@@ -16,7 +16,7 @@ const state = {
   seed: 1,
   th: init(cfg, 1),
   tr: trainer(cfg, L, TASKS.max, 1),
-  running: true,
+  running: false, // starts paused: press Train
   tokens: [1, 3, 0, 2, 1],
   pos: 3,
   selected: null as number | null,
@@ -61,7 +61,7 @@ $('blurb').textContent =
 const task = $<HTMLSelectElement>('task');
 for (const k in TASKS) task.add(new Option(`task: ${TASKS[k].name}`, k));
 task.onchange = () => { state.task = task.value; restart(false); };
-$('run').onclick = () => { state.running = !state.running; };
+$('run').onclick = () => { state.running = !state.running; state.accDue = 0; };
 $('reset').onclick = () => restart(true);
 
 const slider = $<HTMLInputElement>('param-slider');
